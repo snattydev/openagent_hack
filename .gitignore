@@ -9,11 +9,6 @@ data/
 *.tsbuildinfo
 pnpm-lock.yaml
 
-# AI / orchestration logs
-.sisyphus/evidence/
-.sisyphus/notepads/
-.sisyphus/boulder.json
-
 # IDE
 .vscode/
 .idea/
