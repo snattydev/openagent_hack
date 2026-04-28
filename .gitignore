@@ -1,1 +1,23 @@
+node_modules/
+dist/
+.env
+.sisyphus/
 context.md
+progress.md
+DEV.md
+data/
+*.tsbuildinfo
+pnpm-lock.yaml
+
+# AI / orchestration logs
+.sisyphus/evidence/
+.sisyphus/notepads/
+.sisyphus/boulder.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

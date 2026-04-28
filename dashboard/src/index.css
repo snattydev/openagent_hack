@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg: #030712;
+    --color-surface: #111827;
+    --color-surface-light: #1f2937;
+    --color-divider: #374151;
+    --color-text-primary: #f8fafc;
+    --color-text-secondary: #94a3b8;
+    --color-accent: #22d3ee;
+    --color-accent-dim: rgba(34, 211, 238, 0.1);
+    --font-sans: 'Outfit', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    @apply bg-bg text-text-primary;
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .dashboard-card {
+    @apply bg-surface border border-divider rounded-xl p-6;
+  }
+}

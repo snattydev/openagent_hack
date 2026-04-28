@@ -1,10 +1,14 @@
 {
-  "name": "senti-balancer",
+  "name": "capymate",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "demo": "USE_MOCK_SERVICES=true npx tsx scripts/demo.ts",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
