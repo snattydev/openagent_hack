@@ -65,7 +65,7 @@ The agent is fully mockable — it runs end-to-end without any API keys for safe
 │           └── TradeHistory.tsx
 ├── scripts/
 │   └── demo.ts                  # Hackathon demo (bullish + bearish)
-├── tests/                       # Smoke / integration tests
+├── developer_test/              # Tests, mocks, demo scripts
 │   ├── test-validator.ts
 │   ├── test-engine.ts
 │   ├── test-llm-mock.ts
@@ -117,7 +117,7 @@ The fastest way to see the agent in action — no API keys required:
 
 ```bash
 npm run demo
-# or: USE_MOCK_SERVICES=true npx tsx scripts/demo.ts
+# or: USE_MOCK_SERVICES=true npx tsx developer_test/scripts/demo.ts
 ```
 
 Expected output (~15 seconds):

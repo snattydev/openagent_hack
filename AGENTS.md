@@ -169,7 +169,7 @@ on-chain, keep the full history on 0G.
 1. Add rule to `SAFETY_CONFIG` in `src/config/constants.ts`
 2. Implement check in `src/logic/validator.ts` as a pure function
 3. Wire into `validateRebalance()` in order of importance
-4. Add test to `tests/test-validator.ts`
+4. Add test to `developer_test/tests/test-validator.ts`
 
 ### Modifying the State Schema
 
@@ -246,9 +246,12 @@ blockchain_test/
   test/
     MockPortfolioTracker.ts     Contract tests
 
-tests/
-  test-*.ts                   Service smoke tests
-  test-agent-hardhat.ts       Agent + blockchain integration
+developer_test/
+  tests/
+    test-*.ts                 Service smoke tests
+    test-agent-hardhat.ts     Agent + blockchain integration
+  scripts/
+    demo.ts                   Integration demo
 
 data/
   agent-state.json            Mock mode state file (gitignored)
@@ -308,7 +311,7 @@ rm data/agent-state.json
 
 **Verification:**
 - `npm run typecheck` ✅
-- `tests/test-engine.ts` ✅ (13/13 pass)
+- `developer_test/tests/test-engine.ts` ✅ (13/13 pass)
 - `npm run demo` ✅ (multi-cycle state persists correctly)
 - `npm run compile` ✅
 - `npm run test:contracts` ✅ (1 passing)
