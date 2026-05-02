@@ -1,0 +1,27 @@
+{
+  "name": "capymate-blockchain-test",
+  "version": "1.0.0",
+  "description": "Hardhat blockchain testing environment for CapyMate",
+  "type": "module",
+  "scripts": {
+    "node": "npx hardhat node",
+    "compile": "npx hardhat compile",
+    "deploy:local": "npx hardhat run scripts/deploy.ts --network localhost",
+    "test:contracts": "npx tsx node_modules/.bin/mocha test/*.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.6.0",
+    "chai": "^4.5.0",
+    "ethers": "^6.16.0",
+    "hardhat": "^3.4.2",
+    "mocha": "^10.7.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,13 +1,25 @@
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build output
 dist/
-.env
-.sisyphus/
-context.md
-progress.md
-DEV.md
-data/
 *.tsbuildinfo
+
+# Environment & secrets
+.env
+
+# Agent workspace
+.sisyphus/
+
+# Generated artifacts
+artifacts/
+cache/
+data/
+
+# Lock files (keep package-lock.json for reproducibility)
 pnpm-lock.yaml
+yarn.lock
 
 # IDE
 .vscode/
@@ -16,3 +28,7 @@ pnpm-lock.yaml
 # OS
 .DS_Store
 Thumbs.db
+
+# Test artifacts
+test-results/
+playwright-report/
