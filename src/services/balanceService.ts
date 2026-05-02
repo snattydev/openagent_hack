@@ -157,6 +157,31 @@ export class BalanceService {
   }
 
   private async fetchPrices(): Promise<{ weth: number; usdc: number }> {
-    return { weth: MOCK_WETH_PRICE, usdc: MOCK_USDC_PRICE };
+    try {
+      const response = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=ethereum,usd-coin&vs_currencies=usd',
+      );
+
+      if (!response.ok) {
+        console.warn(`[BalanceService] CoinGecko error: ${response.status}. Using mock prices.`);
+        return { weth: MOCK_WETH_PRICE, usdc: MOCK_USDC_PRICE };
+      }
+
+      const data = (await response.json()) as {
+        ethereum: { usd: number };
+        'usd-coin': { usd: number };
+      };
+
+      return {
+        weth: data.ethereum?.usd ?? MOCK_WETH_PRICE,
+        usdc: data['usd-coin']?.usd ?? MOCK_USDC_PRICE,
+      };
+    } catch (err) {
+      console.warn(
+        '[BalanceService] Price fetch failed:',
+        err instanceof Error ? err.message : String(err),
+      );
+      return { weth: MOCK_WETH_PRICE, usdc: MOCK_USDC_PRICE };
+    }
   }
 }
