@@ -7,13 +7,13 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "demo": "USE_MOCK_SERVICES=true npx tsx scripts/demo.ts",
+    "demo": "USE_MOCK_SERVICES=true npx tsx developer_test/scripts/demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

@@ -12,6 +12,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": ["src/**/*", "scripts/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "developer_test/**/*", "blockchain_test/**/*", "dashboard/**/*"]
 }
