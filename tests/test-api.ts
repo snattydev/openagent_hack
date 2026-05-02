@@ -17,6 +17,7 @@ const config: ServiceConfig = {
   keeperHubApiKey: '',
   llmApiKey: '',
   llmModel: 'gpt-4o-mini',
+  llmBaseUrl: 'https://api.openai.com/v1',
   cryptopanicApiKey: '',
   pollingIntervalMs: 300000,
   port: 3456,

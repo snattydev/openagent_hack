@@ -108,6 +108,7 @@ export interface ServiceConfig {
   keeperHubApiKey: string;
   llmApiKey: string;
   llmModel: string;
+  llmBaseUrl: string;
   cryptopanicApiKey: string;
   pollingIntervalMs: number;
   port: number;

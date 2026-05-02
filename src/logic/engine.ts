@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { Wallet, parseUnits } from 'ethers';
 import { CycleStep } from '../types/index.js';
 import type {
   CycleResult,
@@ -186,14 +186,22 @@ export class Engine {
         const portfolio = currentPortfolio ?? this.getDefaultPortfolio();
 
         if (proposedDecision && proposedDecision.target_allocation) {
+          const fullDecision = (reasonData?.data as {
+            sentiment?: string;
+            confidence?: number;
+            reasoning?: string;
+            target_allocation: { WETH: number; USDC: number };
+            key_signals?: string[];
+          }) ?? null;
+
           validationResult = validateRebalance(
             portfolio,
             {
-              sentiment: 'neutral',
-              confidence: 0,
-              reasoning: '',
+              sentiment: (fullDecision?.sentiment as 'bullish' | 'bearish' | 'neutral') ?? 'neutral',
+              confidence: fullDecision?.confidence ?? 0,
+              reasoning: fullDecision?.reasoning ?? '',
               target_allocation: proposedDecision.target_allocation,
-              key_signals: [],
+              key_signals: fullDecision?.key_signals ?? [],
             },
             this.dailyTradeCount,
             this.lastTradeTime,
@@ -229,20 +237,33 @@ export class Engine {
             (b) => b.token === 'WETH',
           );
 
-          const tradeAmount = calculateTradeAmounts(
-            portfolio,
-            this.state.last_decision!,
-          );
+          if (!this.state.last_decision) {
+            results.push({
+              step: CycleStep.EXECUTE,
+              timestamp: Date.now(),
+              data: { skipped: true, reason: 'No decision available for execution' },
+              success: true,
+            });
+          } else {
+            const tradeAmount = calculateTradeAmounts(
+              portfolio,
+              this.state.last_decision,
+            );
 
-          if (tradeAmount) {
+            if (tradeAmount) {
             const wethPrice = wethEntry?.price_usd ?? 0;
             let rawAmount: string;
-            if (tradeAmount.from_token === 'WETH') {
-              rawAmount = wethPrice > 0
-                ? String(BigInt(Math.floor((tradeAmount.amount_usd / wethPrice) * 1e18)))
-                : '0';
-            } else {
-              rawAmount = String(BigInt(Math.floor(tradeAmount.amount_usd * 1e6)));
+            try {
+              if (tradeAmount.from_token === 'WETH') {
+                const wethAmount = wethPrice > 0
+                  ? tradeAmount.amount_usd / wethPrice
+                  : 0;
+                rawAmount = parseUnits(wethAmount.toFixed(18), 18).toString();
+              } else {
+                rawAmount = parseUnits(tradeAmount.amount_usd.toFixed(6), 6).toString();
+              }
+            } catch {
+              rawAmount = '0';
             }
 
             const quote = await this.uniswapService.getQuote(
@@ -275,6 +296,7 @@ export class Engine {
               data: { skipped: true, reason: 'No rebalance needed — allocation within threshold' },
               success: true,
             });
+            }
           }
         } else {
           results.push({

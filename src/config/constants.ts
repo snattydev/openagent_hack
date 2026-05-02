@@ -86,6 +86,7 @@ export function getConfig(): ServiceConfig {
     keeperHubApiKey: process.env.KEEPER_HUB_API_KEY ?? '',
     llmApiKey: process.env.LLM_API_KEY ?? '',
     llmModel: process.env.LLM_MODEL ?? 'gpt-4o-mini',
+    llmBaseUrl: process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1',
     cryptopanicApiKey: process.env.CRYPTOPANIC_API_KEY ?? '',
     pollingIntervalMs: Number(process.env.POLLING_INTERVAL_MS) || 300000,
     port: Number(process.env.PORT) || 3000,

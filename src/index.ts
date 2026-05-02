@@ -38,6 +38,7 @@ export async function main(): Promise<http.Server> {
   const llmService = new LLMService({
     apiKey: config.llmApiKey,
     model: config.llmModel,
+    baseUrl: config.llmBaseUrl,
     mock: config.useMockServices,
   });
 
