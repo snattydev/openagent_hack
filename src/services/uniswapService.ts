@@ -14,7 +14,7 @@ const TOKEN_ADDRESS_MAP: Record<string, string> = {
 
 /** Configuration options for the Uniswap service. */
 export interface UniswapServiceOptions {
-  /** Uniswap Trading API key (optional). */
+  /** Uniswap Trading API key (optional but recommended). */
   apiKey?: string;
   /** Chain ID to target (defaults to Base Sepolia). */
   chainId?: number;
@@ -22,13 +22,40 @@ export interface UniswapServiceOptions {
   mock?: boolean;
 }
 
+interface UniswapQuoteRequest {
+  type: 'exactIn';
+  chainId: number;
+  amount: string;
+  tokenIn: string;
+  tokenOut: string;
+}
+
+interface UniswapQuoteResponse {
+  quoteId?: string;
+  amountOut: string;
+  route: unknown;
+  gasPriceWei?: string;
+}
+
+interface UniswapSwapRequest {
+  quote: unknown;
+  recipient: string;
+  slippageTolerance: string;
+}
+
+interface UniswapSwapResponse {
+  to: string;
+  data: string;
+  value: string;
+  gasLimit?: string;
+}
+
 /**
  * Service for fetching swap quotes and generating calldata via the
  * Uniswap Trading API (https://trade-api.gateway.uniswap.org/v1).
  *
- * For the hackathon milestone this is **mock-first**: when `mock` is `true`
- * all methods return deterministic fake data so the rest of the agentic
- * pipeline can be exercised without live API credentials.
+ * Supports both mock mode (deterministic fake data) and real mode
+ * (live API calls to Uniswap's routing infrastructure).
  */
 export class UniswapService {
   private readonly apiKey?: string;
@@ -47,7 +74,7 @@ export class UniswapService {
    * @param fromToken – Symbol of the token to sell (e.g. `"WETH"`).
    * @param toToken   – Symbol of the token to buy (e.g. `"USDC"`).
    * @param amount    – Raw wei amount as a string (e.g. `"1000000000000000000"`).
-   * @returns A {@link TradeOrder} or `null` on error / unsupported mode.
+   * @returns A {@link TradeOrder} or `null` on error.
    */
   async getQuote(
     fromToken: string,
@@ -59,27 +86,51 @@ export class UniswapService {
         return this.getMockQuote(fromToken, toToken, amount);
       }
 
-      // ------------------------------------------------------------------
-      // Real-mode integration is intentionally left as a TODO for the
-      // post-hackathon phase.  The intended Uniswap Trading API flow is:
-      //
-      // 1. Resolve token symbols → contract addresses via TOKEN_ADDRESS_MAP.
-      // 2. POST to `${SERVICE_ENDPOINTS.UNISWAP_TRADE_API}/quote` with:
-      //    { type: 'exactIn', chainId: this.chainId, amount,
-      //      tokenIn: <fromAddress>, tokenOut: <toAddress> }
-      //    Include header `x-api-key: this.apiKey` when available.
-      // 3. Validate the JSON response (expected_output, slippage, route_data).
-      // 4. Return a populated TradeOrder object.
-      //
-      // DO NOT implement the full API integration until API keys are
-      // provisioned and the backend is whitelisted.
-      // ------------------------------------------------------------------
+      const fromAddress = TOKEN_ADDRESS_MAP[fromToken];
+      const toAddress = TOKEN_ADDRESS_MAP[toToken];
 
-      console.warn(
-        '[UniswapService] Live Uniswap Trading API integration is pending. ' +
-          'Set mock:true to use deterministic fake quotes.',
-      );
-      return null;
+      if (!fromAddress || !toAddress) {
+        console.error(`[UniswapService] Unknown token pair: ${fromToken} → ${toToken}`);
+        return null;
+      }
+
+      const requestBody: UniswapQuoteRequest = {
+        type: 'exactIn',
+        chainId: this.chainId,
+        amount,
+        tokenIn: fromAddress,
+        tokenOut: toAddress,
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.apiKey) {
+        headers['x-api-key'] = this.apiKey;
+      }
+
+      const response = await fetch(`${SERVICE_ENDPOINTS.UNISWAP_TRADE_API}/quote`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[UniswapService] Quote failed: ${response.status} ${errorText}`);
+        return null;
+      }
+
+      const data = (await response.json()) as UniswapQuoteResponse;
+
+      return {
+        from_token: fromAddress,
+        to_token: toAddress,
+        amount,
+        expected_output: data.amountOut,
+        slippage: SAFETY_CONFIG.MAX_SLIPPAGE,
+        route_data: data,
+      };
     } catch (err) {
       console.error('[UniswapService] getQuote error:', err);
       return null;
@@ -105,25 +156,43 @@ export class UniswapService {
         };
       }
 
-      // ------------------------------------------------------------------
-      // Real-mode integration is intentionally left as a TODO.  The intended
-      // flow for the Uniswap Trading API is:
-      //
-      // 1. POST to `${SERVICE_ENDPOINTS.UNISWAP_TRADE_API}/swap` with the
-      //    quote ID / route data received from the `/quote` step.
-      // 2. The API returns `to`, `data`, and `value` fields ready for
-      //    `ethers.TransactionRequest`.
-      // 3. Return those fields verbatim to the caller (execution service).
-      //
-      // DO NOT implement the full API integration until API keys are
-      // provisioned.
-      // ------------------------------------------------------------------
+      if (!tradeOrder.route_data) {
+        console.error('[UniswapService] No route data in trade order');
+        return null;
+      }
 
-      console.warn(
-        '[UniswapService] Live swap calldata generation is pending. ' +
-          'Set mock:true to use deterministic fake calldata.',
-      );
-      return null;
+      const requestBody: UniswapSwapRequest = {
+        quote: tradeOrder.route_data,
+        recipient: CONTRACT_ADDRESSES.SWAP_ROUTER_02,
+        slippageTolerance: String(SAFETY_CONFIG.MAX_SLIPPAGE * 100),
+      };
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.apiKey) {
+        headers['x-api-key'] = this.apiKey;
+      }
+
+      const response = await fetch(`${SERVICE_ENDPOINTS.UNISWAP_TRADE_API}/swap`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[UniswapService] Swap calldata failed: ${response.status} ${errorText}`);
+        return null;
+      }
+
+      const data = (await response.json()) as UniswapSwapResponse;
+
+      return {
+        to: data.to,
+        data: data.data,
+        value: data.value ?? '0',
+      };
     } catch (err) {
       console.error('[UniswapService] getSwapCalldata error:', err);
       return null;
