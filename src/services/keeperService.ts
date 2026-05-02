@@ -53,14 +53,13 @@ export class KeeperService {
       return this.generateMockHash();
     }
 
-    // TODO: KeeperHub REST API integration
-    // Intended flow:
-    //   1. POST /api/v1/transactions to KeeperHub with payload:
-    //      { chainId, to, data, value }
-    //   2. Include `X-API-Key: <keeperHubApiKey>` header.
-    //   3. Parse response for jobId / txHash.
-    //   4. Poll GET /api/v1/transactions/{jobId} until status is 'mined'.
-    //   5. Return confirmed transaction hash.
+    if (this.keeperHubApiKey) {
+      try {
+        return await this.submitViaKeeperHub(calldata);
+      } catch (err) {
+        console.warn('[KeeperService] KeeperHub failed, falling back to direct RPC:', err);
+      }
+    }
 
     if (!this.privateKey) {
       throw new Error(
@@ -111,6 +110,54 @@ export class KeeperService {
       console.error(`[KeeperService] Transaction submission failed: ${message}`);
       throw new Error(`Transaction submission failed: ${message}`);
     }
+  }
+
+  private async submitViaKeeperHub(calldata: {
+    to: string;
+    data: string;
+    value: string;
+  }): Promise<string> {
+    const response = await fetch('https://api.keeperhub.io/v1/transactions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': this.keeperHubApiKey,
+      },
+      body: JSON.stringify({
+        chainId: this.chainId,
+        ...calldata,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`KeeperHub submit failed: ${response.status}`);
+    }
+
+    const { jobId } = (await response.json()) as { jobId: string };
+
+    let attempts = 0;
+    while (attempts < 60) {
+      await new Promise((r) => setTimeout(r, 5000));
+
+      const statusRes = await fetch(`https://api.keeperhub.io/v1/transactions/${jobId}`, {
+        headers: { 'X-API-Key': this.keeperHubApiKey },
+      });
+
+      if (!statusRes.ok) continue;
+
+      const status = (await statusRes.json()) as { state: string; txHash?: string; error?: string };
+
+      if (status.state === 'mined' && status.txHash) {
+        console.log(`[KeeperService] Transaction mined: ${status.txHash}`);
+        return status.txHash;
+      }
+      if (status.state === 'failed') {
+        throw new Error(`KeeperHub tx failed: ${status.error ?? 'unknown'}`);
+      }
+      attempts++;
+    }
+
+    throw new Error('KeeperHub tx timeout after 5 minutes');
   }
 
   private generateMockHash(): string {
