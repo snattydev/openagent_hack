@@ -31,16 +31,39 @@ export class ZeroGService {
       return this.loadFromMock(agentId);
     }
 
-    // TODO: Integrate @0gfoundation/0g-ts-sdk once it stabilises.
-    // Intended pattern:
-    //   import { Batcher, KvClient } from '@0gfoundation/0g-ts-sdk';
-    //   const batcher = new Batcher(this.indexerUrl);
-    //   const kv = new KvClient(batcher, this.flowContract);
-    //   const raw = await kv.get(agentId);
-    //   return raw ? (JSON.parse(raw) as AgentState) : null;
+    try {
+      const url = new URL(`/kv/${encodeURIComponent(agentId)}`, this.indexerUrl);
+      url.searchParams.set('contract', this.flowContract);
 
-    console.warn('[ZeroGService] 0G SDK integration is pending; loadState returning null.');
-    return null;
+      const headers: Record<string, string> = {};
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+
+      const response = await fetch(url.toString(), { headers });
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (!response.ok) {
+        console.warn(
+          `[ZeroGService] loadState failed: ${response.status} ${response.statusText}. Falling back to mock.`,
+        );
+        return this.loadFromMock(agentId);
+      }
+
+      const raw = await response.text();
+      if (!raw) return null;
+
+      return JSON.parse(raw) as AgentState;
+    } catch (err) {
+      console.warn(
+        '[ZeroGService] loadState error (0G may be unavailable):',
+        err instanceof Error ? err.message : String(err),
+      );
+      return this.loadFromMock(agentId);
+    }
   }
 
   async saveState(agentId: string, state: AgentState): Promise<void> {
@@ -49,14 +72,42 @@ export class ZeroGService {
       return;
     }
 
-    // TODO: Integrate @0gfoundation/0g-ts-sdk once it stabilises.
-    // Intended pattern:
-    //   import { Batcher, KvClient } from '@0gfoundation/0g-ts-sdk';
-    //   const batcher = new Batcher(this.indexerUrl);
-    //   const kv = new KvClient(batcher, this.flowContract);
-    //   await kv.set(agentId, JSON.stringify(state));
+    try {
+      const url = new URL('/kv', this.indexerUrl);
 
-    console.warn('[ZeroGService] 0G SDK integration is pending; saveState skipped.');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (this.apiKey) {
+        headers['Authorization'] = `Bearer ${this.apiKey}`;
+      }
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          contract: this.flowContract,
+          key: agentId,
+          value: JSON.stringify(state),
+        }),
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `[ZeroGService] saveState failed: ${response.status} ${response.statusText}. Falling back to mock.`,
+        );
+        await this.saveToMock(agentId, state);
+        return;
+      }
+
+      console.log(`[ZeroGService] State saved to 0G for agent ${agentId}`);
+    } catch (err) {
+      console.warn(
+        '[ZeroGService] saveState error (0G may be unavailable):',
+        err instanceof Error ? err.message : String(err),
+      );
+      await this.saveToMock(agentId, state);
+    }
   }
 
   private async loadFromMock(agentId: string): Promise<AgentState | null> {
