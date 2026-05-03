@@ -9,7 +9,7 @@ import type {
   NewsItem,
   TokenBalance,
 } from '../types/index.js';
-import { SAFETY_CONFIG } from '../config/constants.js';
+import { SAFETY_CONFIG, STORAGE_CONFIG } from '../config/constants.js';
 import type { BalanceService } from '../services/balanceService.js';
 import type { ZeroGService } from '../services/0gService.js';
 import type { NewsService } from '../services/newsService.js';
@@ -101,6 +101,7 @@ export class Engine {
           this.balanceService.getWalletBalances(walletAddress),
           this.newsService.fetchNews(['BTC', 'ETH']),
         ]);
+        portfolio.timestamp = Date.now();
         currentPortfolio = portfolio;
         this.state.portfolio_history.push(portfolio);
         results.push({
@@ -124,7 +125,15 @@ export class Engine {
       try {
         const saved = await this.zeroGService.loadState(AGENT_ID);
         if (saved !== null) {
-          this.state = saved;
+          this.state.cycle_count = Math.max(this.state.cycle_count, saved.cycle_count);
+          this.state.last_decision = saved.last_decision ?? this.state.last_decision;
+          this.state.reasoning = saved.reasoning || this.state.reasoning;
+
+          const inMemoryTimestamps = new Set(this.state.portfolio_history.map((p) => p.timestamp));
+          const newHistory = (saved.portfolio_history ?? []).filter(
+            (p) => !inMemoryTimestamps.has(p.timestamp),
+          );
+          this.state.portfolio_history = [...newHistory, ...this.state.portfolio_history];
         }
         results.push({
           step: CycleStep.REMEMBER,
@@ -248,57 +257,21 @@ export class Engine {
               success: true,
             });
           } else {
-            const tradeAmount = calculateTradeAmounts(
-              portfolio,
-              this.state.last_decision,
-            );
-
-            if (tradeAmount) {
-            const wethPrice = wethEntry?.price_usd ?? 0;
-            let rawAmount: string;
-            try {
-              if (tradeAmount.from_token === 'WETH') {
-                const wethAmount = wethPrice > 0
-                  ? tradeAmount.amount_usd / wethPrice
-                  : 0;
-                rawAmount = parseUnits(wethAmount.toFixed(18), 18).toString();
-              } else {
-                rawAmount = parseUnits(tradeAmount.amount_usd.toFixed(6), 6).toString();
-              }
-            } catch {
-              rawAmount = '0';
-            }
-
-            const quote = await this.uniswapService.getQuote(
-              tradeAmount.from_token,
-              tradeAmount.to_token,
-              rawAmount,
-            );
-
-            let txHash = '';
-            if (quote) {
-              const calldata = await this.uniswapService.getSwapCalldata(quote);
-              if (calldata) {
-                txHash = await this.keeperService.submitTransaction(calldata);
-              }
-            }
-
-            this.dailyTradeCount += 1;
-            this.lastTradeTime = Date.now();
-
-            results.push({
-              step: CycleStep.EXECUTE,
-              timestamp: Date.now(),
-              data: { quote, txHash },
-              success: true,
-            });
-          } else {
-            results.push({
-              step: CycleStep.EXECUTE,
-              timestamp: Date.now(),
-              data: { skipped: true, reason: 'No rebalance needed — allocation within threshold' },
-              success: true,
-            });
+            const tradeResult = await this.executeTrade(portfolio, this.state.last_decision);
+            if (tradeResult) {
+              results.push({
+                step: CycleStep.EXECUTE,
+                timestamp: Date.now(),
+                data: tradeResult,
+                success: true,
+              });
+            } else {
+              results.push({
+                step: CycleStep.EXECUTE,
+                timestamp: Date.now(),
+                data: { skipped: true, reason: 'No rebalance needed — allocation within threshold' },
+                success: true,
+              });
             }
           }
         } else {
@@ -327,6 +300,12 @@ export class Engine {
       try {
         this.state.cycle_count += 1;
         this.state.timestamp = Date.now();
+
+        if (this.state.portfolio_history.length > STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES) {
+          this.state.portfolio_history = this.state.portfolio_history.slice(
+            -STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES,
+          );
+        }
 
         await this.zeroGService.saveState(AGENT_ID, this.state);
         results.push({
@@ -415,45 +394,12 @@ export class Engine {
     try {
       if (validationResult?.valid && currentPortfolio) {
         const portfolio = currentPortfolio;
-        const wethEntry = portfolio.balances.find((b) => b.token === 'WETH');
-
-        const tradeAmount = calculateTradeAmounts(portfolio, decision);
-
-        if (tradeAmount) {
-          const wethPrice = wethEntry?.price_usd ?? 0;
-          let rawAmount: string;
-          try {
-            if (tradeAmount.from_token === 'WETH') {
-              const wethAmount = wethPrice > 0 ? tradeAmount.amount_usd / wethPrice : 0;
-              rawAmount = parseUnits(wethAmount.toFixed(18), 18).toString();
-            } else {
-              rawAmount = parseUnits(tradeAmount.amount_usd.toFixed(6), 6).toString();
-            }
-          } catch {
-            rawAmount = '0';
-          }
-
-          const quote = await this.uniswapService.getQuote(
-            tradeAmount.from_token,
-            tradeAmount.to_token,
-            rawAmount,
-          );
-
-          let txHash = '';
-          if (quote) {
-            const calldata = await this.uniswapService.getSwapCalldata(quote);
-            if (calldata) {
-              txHash = await this.keeperService.submitTransaction(calldata);
-            }
-          }
-
-          this.dailyTradeCount += 1;
-          this.lastTradeTime = Date.now();
-
+        const tradeResult = await this.executeTrade(portfolio, decision);
+        if (tradeResult) {
           results.push({
             step: CycleStep.EXECUTE,
             timestamp: Date.now(),
-            data: { quote, txHash },
+            data: tradeResult,
             success: true,
           });
         } else {
@@ -490,6 +436,13 @@ export class Engine {
     try {
       this.state.cycle_count += 1;
       this.state.timestamp = Date.now();
+
+      if (this.state.portfolio_history.length > STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES) {
+        this.state.portfolio_history = this.state.portfolio_history.slice(
+          -STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES,
+        );
+      }
+
       await this.zeroGService.saveState(AGENT_ID, this.state);
       results.push({
         step: CycleStep.LOG,
@@ -524,6 +477,56 @@ export class Engine {
       total_value_usd: 0,
       current_allocation: { WETH: 0.5, USDC: 0.5 },
       target_allocation: { WETH: 0.5, USDC: 0.5 },
+      timestamp: Date.now(),
     };
+  }
+
+  /**
+   * Execute a trade based on portfolio and decision.
+   * Shared between runCycle() and decide().
+   */
+  private async executeTrade(
+    portfolio: PortfolioState,
+    decision: LLMDecision,
+  ): Promise<{ quote: any; txHash: string } | null> {
+    const tradeAmount = calculateTradeAmounts(portfolio, decision);
+
+    if (!tradeAmount) {
+      return null;
+    }
+
+    const wethEntry = portfolio.balances.find((b) => b.token === 'WETH');
+    const wethPrice = wethEntry?.price_usd ?? 0;
+    let rawAmount: string;
+    try {
+      if (tradeAmount.from_token === 'WETH') {
+        const wethAmount = wethPrice > 0 ? tradeAmount.amount_usd / wethPrice : 0;
+        rawAmount = parseUnits(wethAmount.toFixed(18), 18).toString();
+      } else {
+        rawAmount = parseUnits(tradeAmount.amount_usd.toFixed(6), 6).toString();
+      }
+    } catch {
+      rawAmount = '0';
+    }
+
+    const quote = await this.uniswapService.getQuote(
+      tradeAmount.from_token,
+      tradeAmount.to_token,
+      rawAmount,
+    );
+
+    let txHash = '';
+    if (quote) {
+      const walletAddress = this.getWalletAddress();
+      const calldata = await this.uniswapService.getSwapCalldata(quote, walletAddress);
+      if (calldata) {
+        txHash = await this.keeperService.submitTransaction(calldata);
+      }
+    }
+
+    this.dailyTradeCount += 1;
+    this.lastTradeTime = Date.now();
+
+    return { quote, txHash };
   }
 }

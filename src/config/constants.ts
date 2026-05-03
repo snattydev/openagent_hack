@@ -16,6 +16,13 @@ export const SAFETY_CONFIG = {
   SENTIMENT_CACHE_MINUTES: 10,
 } as const;
 
+// ── Storage configuration ───────────────────────────────────────────────────
+
+export const STORAGE_CONFIG = {
+  /** Maximum portfolio history entries to persist (bounds 0G payload size). */
+  MAX_PERSISTED_HISTORY_ENTRIES: 20,
+} as const;
+
 // ── Network configuration ───────────────────────────────────────────────────
 
 export const NETWORK_CONFIG = {

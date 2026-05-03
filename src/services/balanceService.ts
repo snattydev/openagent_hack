@@ -69,6 +69,7 @@ export class BalanceService {
       total_value_usd: totalValueUsd,
       current_allocation: { WETH: 0.5, USDC: 0.5 },
       target_allocation: { ...DEFAULT_ALLOCATION },
+      timestamp: Date.now(),
     };
   }
 
@@ -153,6 +154,7 @@ export class BalanceService {
       total_value_usd: totalValueUsd,
       current_allocation: currentAllocation,
       target_allocation: { ...DEFAULT_ALLOCATION },
+      timestamp: Date.now(),
     };
   }
 

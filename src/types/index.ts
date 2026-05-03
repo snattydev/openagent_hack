@@ -60,6 +60,8 @@ export interface PortfolioState {
   total_value_usd: number;
   current_allocation: { WETH: number; USDC: number };
   target_allocation: { WETH: number; USDC: number };
+  /** Unix timestamp (ms) when this snapshot was taken. */
+  timestamp: number;
 }
 
 /** A trade order ready for execution. */

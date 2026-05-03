@@ -146,6 +146,7 @@ export class UniswapService {
    */
   async getSwapCalldata(
     tradeOrder: TradeOrder,
+    recipient?: string,
   ): Promise<{ to: string; data: string; value: string } | null> {
     try {
       if (this.mock) {
@@ -163,7 +164,7 @@ export class UniswapService {
 
       const requestBody: UniswapSwapRequest = {
         quote: tradeOrder.route_data,
-        recipient: CONTRACT_ADDRESSES.SWAP_ROUTER_02,
+        recipient: recipient ?? CONTRACT_ADDRESSES.SWAP_ROUTER_02,
         slippageTolerance: String(SAFETY_CONFIG.MAX_SLIPPAGE * 100),
       };
 
