@@ -1,7 +1,19 @@
-# CAPYMATE: Autonomous Sentiment-Based Portfolio Rebalancer
+# CapyMate: Autonomous Sentiment-Based Portfolio Rebalancer
 
-**Last Updated:** 2026-05-03 (integrations complete)  
+**Last Updated:** 2026-05-03  
 **Status:** MVP-ready. All core integrations implemented with graceful fallbacks.
+
+---
+
+## 🎯 What We Built
+
+CapyMate is an AI agent that autonomously rebalances a crypto portfolio (WETH/USDC) based on real-time market sentiment analysis. Built for the ETHGlobal OpenAgent Hackathon.
+
+**Key Differentiators:**
+- **Decentralized memory** via 0G Storage — agent state persists across restarts
+- **Agent Plugin Mode** — any AI agent (Claude, GPT-4, DeepSeek) can use CapyMate as a crypto execution layer without provisioning API keys
+- **On-chain execution** via Uniswap V3 + KeeperHub with automatic fallback to direct RPC
+- **6 hardcoded safety rules** — whitelist, threshold, max trade, cooldown, daily limit, slippage
 
 ---
 
@@ -10,25 +22,12 @@
 | File | Audience | Purpose |
 |------|----------|---------|
 | `README.md` | Everyone | Quick start, API docs, demo checklist |
-| `DEV/CONTEXT.md` | Developers | Architecture, gotchas, testing guide |
-| `DEV/RESULTS.md` | Judges / Reviewers | Test report, prize analysis, submission guide |
+| `DEV/CONTEXT.md` | Developers | Architecture guide |
 | `AGENTS.md` | AI Agents | Context for assistants working on the codebase |
 
 ---
 
-## 🎯 PROJECT OVERVIEW
-
-An AI agent that autonomously rebalances a crypto portfolio (WETH/USDC) based on real-time market sentiment analysis. Built for the ETHGlobal OpenAgent Hackathon.
-
-**Key Differentiators:**
-- Decentralized memory via 0G Storage (agent state persists across restarts)
-- Autonomous sentiment analysis via LLM (Claude, GPT, DeepSeek)
-- On-chain execution via Uniswap V3 + KeeperHub
-- 6 hardcoded safety rules (whitelist, threshold, max trade, cooldown, daily limit, slippage)
-
----
-
-## 🏗️ TECHNICAL STACK
+## 🏗️ Technical Stack
 
 | Layer | Technology | Status |
 |-------|------------|--------|
@@ -47,7 +46,7 @@ An AI agent that autonomously rebalances a crypto portfolio (WETH/USDC) based on
 
 ---
 
-## 📁 PROJECT STRUCTURE
+## 📁 Project Structure
 
 ```
 capymate/
@@ -88,11 +87,8 @@ capymate/
 │   ├── tsconfig.json
 │   └── package.json
 ├── dashboard/                    # React frontend
-├── dev/                          # Agent context & design docs
-│   ├── CONTEXT.md                # ← You are here
-│   ├── HARNESS_DESIGN.md         # Agent-installable harness plan
-│   ├── AGENT_PROMPT.md           # Agent installation guide
-│   └── RESULTS.md                # Test report
+├── DEV/                          # Public documentation
+│   └── CONTEXT.md                # ← You are here
 ├── .env.example
 ├── package.json
 ├── tsconfig.json
@@ -101,7 +97,7 @@ capymate/
 
 ---
 
-## 🔄 AGENT LOOP FLOW
+## 🔄 Agent Loop Flow
 
 ```
 Every POLLING_INTERVAL_MS (default: 5 min):
@@ -114,7 +110,7 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 2. REMEMBER ───────────────────────────────────────────────►
    • Load saved state from 0G Storage
    • MERGE with in-memory state (dedup by timestamp)
-   ⚠️ Critical: Does NOT overwrite. Merges to prevent data loss.
+   • Does NOT overwrite. Merges to prevent data loss.
 
 3. REASON ─────────────────────────────────────────────────►
    • Send context to LLM (news + prices + state)
@@ -123,11 +119,11 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 
 4. VALIDATE ───────────────────────────────────────────────►
    • Rule 1: Token whitelist [WETH, USDC]
-   • Rule 2: Rebalance delta ≥ MIN_THRESHOLD (2%)
-   • Rule 3: Max single trade ≤ MAX_SINGLE_TRADE (10%)
-   • Rule 4: Max slippage ≤ MAX_SLIPPAGE (0.5%)
-   • Rule 5: Cooldown ≥ COOLDOWN_MINUTES (15 min)
-   • Rule 6: Daily trades ≤ MAX_DAILY_TRADES (6)
+   • Rule 2: Rebalance delta >= MIN_THRESHOLD (2%)
+   • Rule 3: Max single trade <= MAX_SINGLE_TRADE (10%)
+   • Rule 4: Max slippage <= MAX_SLIPPAGE (0.5%)
+   • Rule 5: Cooldown >= COOLDOWN_MINUTES (15 min)
+   • Rule 6: Daily trades <= MAX_DAILY_TRADES (6)
 
 5. EXECUTE ────────────────────────────────────────────────►
    • Get swap quote from Uniswap API
@@ -143,30 +139,41 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 
 ---
 
-## 🔌 INTEGRATION STATUS
+## 🔌 Integration Status
 
-### ✅ Working (Real Mode)
+### ✅ Implemented Integrations
 
-| Integration | How It Works | Requirements |
-|-------------|--------------|--------------|
-| **Balance Reads** | ethers.js v6 `Contract.balanceOf()` | RPC_URL, wallet address |
-| **LLM Analysis** | OpenAI-compatible API call | LLM_API_KEY, LLM_MODEL |
-| **News Fetch** | CryptoPanic REST API | CRYPTOPANIC_API_KEY (optional) |
-| **Direct RPC Tx** | ethers.js v6 `wallet.sendTransaction()` | PRIVATE_KEY, RPC_URL |
-| **Dashboard** | React polls Express API | Backend running on port 3000 |
+| Integration | How It Works | Fallback When No Key |
+|-------------|--------------|---------------------|
+| **0G Storage** | HTTP API direct calls (avoids SDK peer dep conflicts) | Local JSON file (`data/agent-state.json`) |
+| **Uniswap Trading API** | POST /quote + POST /swap | Returns null (engine skips trade safely) |
+| **KeeperHub** | REST API POST + polling until mined | Direct RPC via ethers.js v6 |
+| **CoinGecko Price Oracle** | GET /simple/price (free tier) | Hardcoded prices ($2000 WETH / $1 USDC) |
+| **LLM (OpenAI-compatible)** | Fetch + Zod validation | Mock keyword matching (bullish/bearish) |
+| **News (CryptoPanic)** | REST API + mock headlines | Mock headlines work without key |
 
-### 🔴 Pending (Mock Only)
+### ✅ Agent Plugin Mode
 
-| Integration | Blocker | Effort | Plan |
-|-------------|---------|--------|------|
-| **0G Storage** | SDK not installed; TODO stubs | Medium (1-2d) | Install `@0gfoundation/0g-ts-sdk`, implement `KvClient` pattern (see 0gService.ts TODOs) |
-| **Uniswap Quotes** | API key not provisioned | Medium (1-2d) | Implement `POST /quote` + `POST /swap` flow (see uniswapService.ts TODOs) |
-| **KeeperHub Relay** | API key not provisioned | Low (4-8h) | Implement REST API POST + polling (see keeperService.ts TODOs) |
-| **Price Oracle** | No real price feed | Low (2-4h) | Use Uniswap quote endpoint or CoinGecko free API for WETH/USDC prices |
+| Feature | Description |
+|---------|-------------|
+| **POST /api/sense** | Returns portfolio + news for host agent analysis |
+| **POST /api/decide** | Accepts LLMDecision from host agent, runs VALIDATE->EXECUTE->LOG |
+| **Zero API keys** | Plugin mode works with host agent's existing LLM |
+
+### 🚀 Future Enhancements
+
+| # | Enhancement | Description |
+|---|-------------|-------------|
+| 1 | **Mainnet deployment** | Switch from Base Sepolia to Base Mainnet |
+| 2 | **ENS identity** | Register `capymate.eth` for agent identity and discoverability |
+| 3 | **iNFT tokenization** | Wrap agent state + wallet into 0G iNFT for ownership transfer |
+| 4 | **Multi-token support** | Currently WETH/USDC — designed to easily add more pairs |
+| 5 | **Monitoring & alerting** | Add alerting for failed cycles, low balances, API downtime |
+| 6 | **Custom strategy parameters** | Allow users to configure risk tolerance and allocation ranges |
 
 ---
 
-## 🛡️ SAFETY CONSTRAINTS
+## 🛡️ Safety Constraints
 
 ```typescript
 const SAFETY_CONFIG = {
@@ -180,18 +187,17 @@ const SAFETY_CONFIG = {
 };
 ```
 
-**Rules are hardcoded, not API-exposed.** These are intentional guardrails.
+Rules are hardcoded, not API-exposed. These are intentional guardrails.
 
 ---
 
-## 🔧 KEY ARCHITECTURE DECISIONS
+## 🔧 Key Architecture Decisions
 
 ### 1. State Merge in REMEMBER
 
 SENSE pushes a portfolio snapshot *before* REMEMBER loads saved state. REMEMBER merges (doesn't overwrite) to prevent data loss:
 
 ```typescript
-// engine.ts ~line 122
 const saved = await this.zeroGService.loadState(AGENT_ID);
 if (saved !== null) {
   this.state.cycle_count = Math.max(this.state.cycle_count, saved.cycle_count);
@@ -202,8 +208,6 @@ if (saved !== null) {
   this.state.portfolio_history = [...newHistory, ...this.state.portfolio_history];
 }
 ```
-
-**Rule:** If modifying REMEMBER or SENSE logic, always preserve merge behavior.
 
 ### 2. Mock Mode Pattern
 
@@ -222,7 +226,7 @@ class MyService {
 }
 ```
 
-**Benefit:** Entire stack runs without API keys. Demo-ready.
+Benefit: Entire stack runs without API keys. Demo-ready.
 
 ### 3. Zod Two-Pass Validation
 
@@ -243,7 +247,7 @@ Each cycle step is independently try-caught. A failure in SENSE doesn't prevent 
 
 ---
 
-## 🧪 TESTING GUIDE
+## 🧪 Testing Guide
 
 ### Run Tests
 
@@ -280,41 +284,7 @@ npx playwright test
 
 ---
 
-## 🚨 GOTCHAS & PITFALLS
-
-1. **"State changes aren't persisting"**
-   - Check: Is `USE_MOCK_SERVICES=true`? Mock mode writes to `data/agent-state.json`
-   - Check: Did REMEMBER overwrite your changes? Ensure merge logic is preserved
-   - Check: Is `cycle_count` incrementing? LOG step must complete for save to trigger
-
-2. **"TypeScript errors in Hardhat files"**
-   - Must be in `blockchain_test/` directory, not root
-   - `blockchain_test/tsconfig.json` is used for Hardhat files
-   - Hardhat v3 uses direct `ethers` import (not from 'hardhat')
-
-3. **"Portfolio history is missing entries"**
-   - Check SENSE adds `timestamp` to portfolio snapshots
-   - Check REMEMBER merges state correctly (dedup by timestamp)
-   - Check LOG step doesn't prune too aggressively (cap is 20 entries)
-
-4. **"Wei precision loss"**
-   - Fixed: Use `parseUnits(amount.toFixed(decimals), decimals)` instead of `Math.floor(float * 1e18)`
-   - See `engine.ts` EXECUTE step for correct pattern
-
-5. **"LLM returns percentages instead of decimals"**
-   - Handled: `llmService.ts` normalizes percentages → decimals automatically
-   - But still good to mention in system prompt: "values must be decimals between 0 and 1"
-
-6. **"Demo shows old cycle counts"**
-   - `demo.ts` reuses `data/agent-state.json`. Delete to reset: `rm data/agent-state.json`
-
-7. **"npm install fails with peer dep errors"**
-   - Fixed: Hardhat is isolated in `blockchain_test/`. Root project installs cleanly.
-   - If you see `@typechain/hardhat` errors, you're installing in the wrong directory.
-
----
-
-## 📝 ENVIRONMENT VARIABLES
+## 📝 Environment Variables
 
 ```env
 # Network
@@ -347,38 +317,7 @@ USE_MOCK_SERVICES=true
 
 ---
 
-## 🚀 INTEGRATION ROADMAP
-
-### ✅ Phase 1: Core Real Integrations (COMPLETE)
-
-| # | Integration | Status | Fallback When No Key |
-|---|-------------|--------|---------------------|
-| 1 | **0G Storage HTTP API** | ✅ Implemented | Local JSON file (`data/agent-state.json`) |
-| 2 | **Uniswap Trading API** | ✅ Implemented | Returns null (engine skips trade safely) |
-| 3 | **KeeperHub REST API** | ✅ Implemented | Direct RPC via ethers.js v6 |
-| 4 | **CoinGecko Price Oracle** | ✅ Implemented | Hardcoded prices ($2000 WETH / $1 USDC) |
-| 5 | **LLM (OpenAI-compatible)** | ✅ Implemented | Mock keyword matching |
-
-### ✅ Phase 2: Agent Plugin Mode (COMPLETE)
-
-| # | Feature | Description |
-|---|---------|-------------|
-| 6 | **POST /api/sense** | Returns portfolio + news for host agent analysis |
-| 7 | **POST /api/decide** | Accepts LLMDecision from host agent, runs VALIDATE→EXECUTE→LOG |
-| 8 | **Zero API keys** | Plugin mode works with host agent's existing LLM — no key provisioning |
-
-### Phase 3: Future Enhancements
-
-| # | Task | Description |
-|---|------|-------------|
-| 9 | **Mainnet deployment** | Switch from Base Sepolia to Base Mainnet |
-| 10 | **ENS identity** | Register `capymate.eth` for agent identity |
-| 11 | **iNFT tokenization** | Wrap agent state + wallet into 0G iNFT |
-| 12 | **Monitoring** | Add alerting for failed cycles, low balances, API downtime |
-
----
-
-## 🎓 EXTENSION POINTS
+## 🎓 Extension Points
 
 ### Add a New Service
 
@@ -397,36 +336,22 @@ USE_MOCK_SERVICES=true
 3. Wire into `validateRebalance()` in order of importance
 4. Add test to `developer_test/tests/test-validator.ts`
 
-### Modify the State Schema
+### Add a New Token Pair
 
-1. Update `AgentState` or related interfaces in `src/types/index.ts`
-2. Handle missing values in `0gService.ts` loadState (backward compat)
-3. If field affects payload size, consider pruning in engine.ts LOG step
-4. Update `DEV/CONTEXT.md` State Schema section
-5. Run `npm run demo` to verify state persistence still works
+1. Add token address to `NETWORK_CONFIG` in `src/config/constants.ts`
+2. Add to `SAFETY_CONFIG.ALLOWED_TOKENS`
+3. Update balance reads in `balanceService.ts`
+4. Update allocation math in `portfolio.ts`
 
 ---
 
-## 📊 AUDIT SUMMARY
+## 🏆 Prize Track Fit
 
-**Date:** 2026-05-02  
-**Auditor:** DeepSeek V4 Pro (Oracle agent)  
-**Scores:**
-- Design Alignment: 8/10
-- Code Quality: 8/10
-- Architecture: 9/10
-- MVP Readiness: 5.5/10 (polished scaffold, integrations pending)
-- Review-Friendliness: 7.5/10
-
-**Key Finding:** The project is a well-structured mock scaffold with excellent DX. The gap between "demo mode" and "real mode" is 3 core integrations (0G, Uniswap, KeeperHub). All safety rules, state management, and architecture are production-ready.
-
-**Critical Issues Fixed:**
-- ✅ Wei precision loss (parseUnits)
-- ✅ LLM_BASE_URL config missing
-- ✅ Validator receiving fake sentiment data
-- ✅ NPE risk on `last_decision!`
-
-**Files Changed:** See git log on `dev` branch.
+| Sponsor | Prize | Why We Fit |
+|---------|-------|------------|
+| **0G** | $15,000 | Decentralized memory via 0G Storage + autonomous agent framework |
+| **KeeperHub** | $4,500 | Execution layer with gasless relay + direct RPC fallback |
+| **Uniswap** | $5,000 | Trading API integration with safety validation |
 
 ---
 
