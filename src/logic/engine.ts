@@ -153,7 +153,7 @@ export class Engine {
       }
 
       // ── 3. REASON ─────────────────────────────────────────────────────
-      let decision: unknown = null;
+      let decision: LLMDecision | null = null;
       try {
         const senseData = results.find(
           (r) => r.step === CycleStep.SENSE && r.success,
@@ -166,8 +166,8 @@ export class Engine {
           this.state,
           balances,
         );
-        this.state.last_decision = decision as AgentState['last_decision'];
-        this.state.reasoning = (decision as { reasoning: string }).reasoning;
+        this.state.last_decision = decision;
+        this.state.reasoning = decision.reasoning;
         results.push({
           step: CycleStep.REASON,
           timestamp: Date.now(),
@@ -191,30 +191,14 @@ export class Engine {
         const reasonData = results.find(
           (r) => r.step === CycleStep.REASON && r.success,
         );
-        const proposedDecision = reasonData?.data as {
-          target_allocation: { WETH: number; USDC: number };
-        } | null;
+        const proposedDecision = reasonData?.data as LLMDecision | null;
 
         const portfolio = currentPortfolio ?? this.getDefaultPortfolio();
 
         if (proposedDecision && proposedDecision.target_allocation) {
-          const fullDecision = (reasonData?.data as {
-            sentiment?: string;
-            confidence?: number;
-            reasoning?: string;
-            target_allocation: { WETH: number; USDC: number };
-            key_signals?: string[];
-          }) ?? null;
-
           validationResult = validateRebalance(
             portfolio,
-            {
-              sentiment: (fullDecision?.sentiment as 'bullish' | 'bearish' | 'neutral') ?? 'neutral',
-              confidence: fullDecision?.confidence ?? 0,
-              reasoning: fullDecision?.reasoning ?? '',
-              target_allocation: proposedDecision.target_allocation,
-              key_signals: fullDecision?.key_signals ?? [],
-            },
+            proposedDecision,
             this.dailyTradeCount,
             this.lastTradeTime,
           );
@@ -244,11 +228,6 @@ export class Engine {
       // ── 5. EXECUTE ────────────────────────────────────────────────────
       try {
         if (validationResult?.valid && currentPortfolio) {
-          const portfolio = currentPortfolio;
-          const wethEntry = portfolio.balances.find(
-            (b) => b.token === 'WETH',
-          );
-
           if (!this.state.last_decision) {
             results.push({
               step: CycleStep.EXECUTE,
@@ -257,7 +236,7 @@ export class Engine {
               success: true,
             });
           } else {
-            const tradeResult = await this.executeTrade(portfolio, this.state.last_decision);
+            const tradeResult = await this.executeTrade(currentPortfolio, this.state.last_decision);
             if (tradeResult) {
               results.push({
                 step: CycleStep.EXECUTE,
@@ -524,8 +503,13 @@ export class Engine {
       }
     }
 
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    if (now - this.lastTradeTime > oneDay) {
+      this.dailyTradeCount = 0;
+    }
     this.dailyTradeCount += 1;
-    this.lastTradeTime = Date.now();
+    this.lastTradeTime = now;
 
     return { quote, txHash };
   }

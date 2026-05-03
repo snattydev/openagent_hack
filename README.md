@@ -1,31 +1,146 @@
 # CapyMate
 
-An autonomous AI agent that rebalances a WETH/USDC crypto portfolio based on real-time market sentiment analysis. Built for the ETHGlobal OpenAgent Hackathon.
+**AI Agent Crypto Harness — Plugin any LLM into DeFi trading with safety guardrails.**
 
-## What It Does
+Built for the ETHGlobal OpenAgent Hackathon.
 
-The agent runs a 6-step autonomous loop:
+CapyMate is a drop-in crypto execution layer for AI agents. Your agent (Claude, GPT-4, DeepSeek, etc.) provides the reasoning; CapyMate handles validation, on-chain execution via Uniswap, decentralized memory via 0G, and transaction relay via KeeperHub.
 
-1. **SENSE** — Fetches latest crypto news + wallet balances
-2. **REMEMBER** — Loads previous decisions from decentralized storage (0G)
-3. **REASON** — Sends context to an LLM for sentiment analysis
-4. **VALIDATE** — Applies 6 safety rules before any trade
-5. **EXECUTE** — Submits rebalance transactions via KeeperHub or direct RPC
-6. **LOG** — Persists state to 0G Storage for cross-session memory
+**Zero configuration for host agents.** CapyMate exposes a clean REST API. The host agent calls `POST /api/sense` to get market data, runs its own LLM to decide allocation, then calls `POST /api/decide` to execute — with 6 hardcoded safety rules enforcing every trade.
 
-The agent is fully mockable — it runs end-to-end without any API keys for safe local testing and hackathon demos.
+CapyMate also runs **autonomously** with its own LLM for fully automated sentiment-driven rebalancing.
 
-### Agent Plugin Mode (No API Keys Needed)
+---
 
-CapyMate can run as a **plugin for any AI agent** (OpenCode, Claude Code, etc.). The host agent provides the LLM reasoning; CapyMate handles validation, execution, and persistent memory.
+## Agent Plugin Mode (Primary)
+
+CapyMate runs as a harness that any AI agent can use as its crypto execution and memory layer.
 
 **Flow:**
-1. Host agent calls `POST /api/sense` → receives current portfolio + news
-2. Host agent runs its own LLM to analyze sentiment and decide allocation
-3. Host agent calls `POST /api/decide` ← injects the decision
-4. CapyMate validates, executes the trade, and logs state
 
-This means **zero API keys required** — the host agent's existing LLM handles reasoning, and CapyMate handles the crypto-specific work.
+```
+┌─────────────────┐     POST /api/sense      ┌─────────────┐
+│   Host Agent    │  ←  portfolio + news     │  CapyMate   │
+│  (Claude, GPT)  │                        │   Harness   │
+└─────────────────┘                        └─────────────┘
+         │                                        │
+         │   Host agent runs its own LLM          │
+         │   to analyze sentiment & decide        │
+         │   target allocation                    │
+         │                                        │
+         ▼                                        ▼
+┌─────────────────┐     POST /api/decide     ┌─────────────┐
+│   Host Agent    │  →  LLMDecision JSON     │  CapyMate   │
+│  (Claude, GPT)  │                        │   Harness   │
+└─────────────────┘                        └─────────────┘
+                                                   │
+                                                   ▼
+                                          ┌─────────────────┐
+                                          │  1. VALIDATE    │
+                                          │  2. EXECUTE     │
+                                          │  3. LOG to 0G   │
+                                          └─────────────────┘
+```
+
+**Why this matters:**
+- **Zero API keys for the host agent** — it already has an LLM; CapyMate handles the crypto-specific work
+- **Safety by default** — 6 hardcoded rules prevent bad trades (whitelist, threshold, max trade, slippage, cooldown, daily limit)
+- **Persistent memory** — agent state survives restarts via 0G Storage
+- **Gasless execution option** — KeeperHub relay with automatic direct-RPC fallback
+
+---
+
+## Installation
+
+### Prerequisites
+
+- Node.js ≥ 20
+- npm
+- A Base Sepolia wallet with testnet ETH (for real mode)
+
+### 1. Install
+
+```bash
+git clone <repo-url>
+cd capymate
+npm install
+```
+
+### 2. Configure
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your credentials:
+
+```env
+# Required
+PRIVATE_KEY=0x...                    # Base Sepolia wallet private key
+RPC_URL=https://sepolia.base.org     # Or your preferred RPC
+
+# Optional — for autonomous LLM mode
+LLM_API_KEY=sk-...                   # OpenAI, Groq, or compatible
+LLM_MODEL=gpt-4o-mini                # Or your preferred model
+LLM_BASE_URL=https://api.openai.com/v1  # Optional, for DeepSeek/Groq
+
+# Optional — service integrations (fall back gracefully if missing)
+KEEPER_HUB_API_KEY=...               # Gasless relay via KeeperHub
+UNISWAP_API_KEY=...                  # Rate-limited without key
+CRYPTOPANIC_API_KEY=...              # Falls back to mock headlines
+ZERO_G_API_KEY=...                   # Falls back to local JSON
+
+# Behavior
+DRY_RUN=false                        # Set to true to simulate trades
+USE_MOCK_SERVICES=false              # Set to true for demo without keys
+POLLING_INTERVAL_MS=300000           # 5 minutes between cycles
+PORT=3000                            # REST API port
+```
+
+### 3. Run
+
+```bash
+# Development with auto-reload
+npm run dev
+
+# Production
+npm run build
+npm start
+```
+
+The API server starts on `http://localhost:3000`.
+
+### 4. Connect Your Agent
+
+**Step 1 — Get market data:**
+```bash
+curl -X POST http://localhost:3000/api/sense
+# → { "portfolio": { "balances": [...], "total_value_usd": 1234.56 }, "news": [...] }
+```
+
+**Step 2 — Your agent analyzes sentiment and decides allocation.**
+
+**Step 3 — Execute the trade:**
+```bash
+curl -X POST http://localhost:3000/api/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sentiment": "bullish",
+    "confidence": 0.85,
+    "reasoning": "ETH ETF approval signals strong upside",
+    "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
+    "key_signals": ["SEC approves Ethereum ETF"]
+  }'
+# → VALIDATE → EXECUTE → LOG results
+```
+
+---
+
+## Autonomous Mode
+
+CapyMate can also run fully autonomously with its own LLM. It fetches news, analyzes sentiment, validates, and executes trades on a polling interval.
+
+Enable by setting `LLM_API_KEY` and leaving the API server running. The agent will auto-poll every `POLLING_INTERVAL_MS` (default: 5 minutes).
 
 ---
 
@@ -36,11 +151,11 @@ This means **zero API keys required** — the host agent's existing LLM handles 
 | Runtime | Node.js 20+, TypeScript 6 |
 | Blockchain | Base Sepolia (testnet) |
 | Wallet / RPC | ethers.js v6 |
-| Storage | 0G Storage SDK (KV store) |
+| Storage | 0G Storage HTTP API (indexer + Flow Contract) |
 | DEX | Uniswap V3 Trading API |
-| Execution | KeeperHub SDK (with direct RPC fallback) |
-| AI | OpenAI-compatible LLM (GPT-4, Claude via proxy, Groq, etc.) |
-| News | CryptoPanic API |
+| Execution | KeeperHub REST API + direct RPC fallback |
+| AI | OpenAI-compatible LLM (GPT-4, Claude, Groq, DeepSeek, etc.) |
+| News | CryptoPanic API + mock fallback |
 | API Server | Express + CORS |
 | Dashboard | React 18 + Vite + Tailwind CSS + Recharts |
 
@@ -80,12 +195,12 @@ This means **zero API keys required** — the host agent's existing LLM handles 
 │   └── scripts/
 ├── blockchain_test/             # Hardhat + Solidity (isolated deps)
 │   ├── contracts/
+│   │   └── MockPortfolioTracker.sol
 │   ├── scripts/
 │   └── test/
-├── dashboard/                   # React + Vite frontend
 ├── DEV/                         # Public documentation
-│   ├── CONTEXT.md               # Architecture guide & gotchas
-│   └── RESULTS.md               # Test report & submission guide
+│   ├── CONTEXT.md               # Architecture guide
+│   └── DEV.md                   # Testing guide
 ├── .env.example
 ├── package.json
 ├── tsconfig.json
@@ -94,182 +209,16 @@ This means **zero API keys required** — the host agent's existing LLM handles 
 
 ---
 
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-npm install
-```
-
-### 2. Environment Setup
-
-```bash
-cp .env.example .env
-```
-
-For **mock mode** (no API keys needed), ensure these are set:
-
-```env
-DRY_RUN=true
-USE_MOCK_SERVICES=true
-```
-
-For **real mode** (requires API keys), fill in the remaining variables:
-
-```env
-PRIVATE_KEY=0x...                    # Testnet wallet only
-LLM_API_KEY=sk-...                   # OpenAI, Groq, or compatible
-LLM_MODEL=gpt-4o-mini                # Or your preferred model
-CRYPTOPANIC_API_KEY=...              # Optional (falls back to mock)
-KEEPER_HUB_API_KEY=...               # Optional (uses direct RPC fallback)
-ZERO_G_API_KEY=...                   # Optional (falls back to local JSON)
-```
-
-### 3. Run the Demo
-
-The fastest way to see the agent in action — no API keys required:
-
-```bash
-npm run demo
-# or: USE_MOCK_SERVICES=true npx tsx developer_test/scripts/demo.ts
-```
-
-Expected output (~15 seconds):
-- **Scenario A — Bullish**: ETH ETF approved → LLM decides bullish → rebalances to 58% WETH / 42% USDC → validation passes → mock transaction executed
-- **Scenario B — Bearish**: Exchange hacked → LLM decides bearish → rebalances to 42% WETH / 58% USDC → validation passes → mock transaction executed
-- **Memory Demo**: Shows persisted state with cycle count and last decision
-
----
-
-## Running the Full System
-
-### Start the Agent + API Server
-
-```bash
-# Development (auto-reload on file changes)
-npm run dev
-
-# Production build
-npm run build
-npm start
-```
-
-The server starts on `http://localhost:3000` (or the `PORT` in your `.env`).
-
-In **mock mode**, the agent does not auto-poll — you trigger cycles manually via the API.
-
-In **real mode**, the agent auto-polls every `POLLING_INTERVAL_MS` (default: 5 minutes).
-
-### API Endpoints
+## API Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
 | GET | `/api/status` | Agent status: `isRunning`, `cycleCount`, `dailyTradeCount` |
-| GET | `/api/state` | Full agent state: `last_decision`, `portfolio_history`, `cycle_count` |
+| GET | `/api/state` | Full agent state: `last_decision`, `portfolio_history`, `cycle_count`, `current_allocation` |
 | POST | `/api/trigger` | Manually trigger one full SENSE→REASON→VALIDATE→EXECUTE→LOG cycle |
 | POST | `/api/sense` | Run SENSE step only — returns portfolio + news (for host agents) |
 | POST | `/api/decide` | Accept an LLM decision and run VALIDATE→EXECUTE→LOG (for host agents) |
-
-Example:
-```bash
-curl http://localhost:3000/api/status
-# {"isRunning":false,"lastCycle":0,"cycleCount":0,"dailyTradeCount":0}
-
-curl -X POST http://localhost:3000/api/trigger
-# Runs one full SENSE→REASON→VALIDATE→EXECUTE→LOG cycle
-```
-
-**Agent Plugin Mode Example:**
-```bash
-# 1. Get market data
-curl -X POST http://localhost:3000/api/sense
-# → { "portfolio": { "balances": [...], "total_value_usd": 1234.56 }, "news": [...] }
-
-# 2. Host agent analyzes sentiment and decides allocation
-
-# 3. Inject decision
-curl -X POST http://localhost:3000/api/decide \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sentiment": "bullish",
-    "confidence": 0.85,
-    "reasoning": "ETH ETF approval signals strong upside",
-    "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
-    "key_signals": ["SEC approves Ethereum ETF"]
-  }'
-# → VALIDATE → EXECUTE → LOG results
-```
-
-### Start the Dashboard
-
-```bash
-cd dashboard
-npm install
-npm run dev
-```
-
-The dashboard opens at `http://localhost:5173`.
-
-It polls the API at `http://localhost:3000` every 5 seconds and displays:
-- **Agent Status** — Running state, cycle count, daily trades
-- **Portfolio Allocation** — Pie chart (current) + area chart (history)
-- **Trade History** — Table with before→after allocation changes
-
-> The dashboard is desktop-only and uses a dark theme.
-
----
-
-## Testing
-
-### Type Check
-
-```bash
-npm run typecheck
-# Expected: 0 errors
-```
-
-### Run the Demo Script
-
-```bash
-npm run demo
-```
-
-This is the primary integration test. It verifies:
-- All 6 services instantiate correctly
-- The engine runs a full cycle
-- Bullish/bearish sentiment routing works
-- Validation rules are applied
-- Mock transactions execute
-- Memory persists across cycles
-
-### Manual API Testing
-
-Start the server in one terminal:
-```bash
-USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
-```
-
-Test in another terminal:
-```bash
-# Health check
-curl http://localhost:3000/api/health
-
-# Trigger a cycle
-curl -X POST http://localhost:3000/api/trigger
-
-# Check updated state
-curl http://localhost:3000/api/state
-```
-
-### Dashboard Build Verification
-
-```bash
-cd dashboard
-npm run build
-# Expected: "dist/" folder created with no errors
-```
 
 ---
 
@@ -282,11 +231,59 @@ The validator enforces 6 hard rules before any trade executes:
 | Allowed Tokens | WETH, USDC | Rejects any non-whitelisted token |
 | Min Rebalance Threshold | 2% | Ignores tiny allocation shifts |
 | Max Single Trade | 10% | Caps any single trade at 10% of portfolio |
-| Max Slippage | 0.5% | Rejects quotes with excessive slippage |
+| Max Slippage | 0.5% | Enforced via Uniswap slippage tolerance |
 | Cooldown | 15 min | Prevents rapid successive trades |
 | Max Daily Trades | 6 | Circuit breaker for daily activity |
 
-All thresholds are hardcoded in `src/config/constants.ts`.
+All thresholds are hardcoded in `src/config/constants.ts` and are **not** exposed via API — they are intentional guardrails.
+
+---
+
+## Testing
+
+### Type Check
+
+```bash
+npm run typecheck
+# Expected: 0 errors
+```
+
+### Run the Demo (No API Keys)
+
+```bash
+npm run demo
+```
+
+This runs in mock mode and verifies:
+- All 6 services instantiate correctly
+- The engine runs a full cycle
+- Bullish/bearish sentiment routing works
+- Validation rules are applied
+- Mock transactions execute
+- Memory persists across cycles
+
+### Manual API Testing
+
+```bash
+# Start server in mock mode
+USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+
+# In another terminal:
+curl http://localhost:3000/api/health
+curl -X POST http://localhost:3000/api/sense
+curl -X POST http://localhost:3000/api/decide \
+  -H "Content-Type: application/json" \
+  -d '{"sentiment":"bullish","confidence":0.85,"reasoning":"ETH ETF","target_allocation":{"WETH":0.8,"USDC":0.2},"key_signals":["ETF"]}'
+```
+
+### Dashboard Build
+
+```bash
+cd dashboard
+npm install
+npm run build
+# Expected: "dist/" folder created with no errors
+```
 
 ---
 
@@ -299,14 +296,16 @@ All thresholds are hardcoded in `src/config/constants.ts`.
 | `PRIVATE_KEY` | — | Wallet private key (testnet only!) |
 | `LLM_API_KEY` | — | OpenAI-compatible API key |
 | `LLM_MODEL` | `gpt-4o-mini` | Model identifier |
+| `LLM_BASE_URL` | `https://api.openai.com/v1` | API base URL (for DeepSeek/Groq) |
 | `CRYPTOPANIC_API_KEY` | — | CryptoPanic API token |
 | `KEEPER_HUB_API_KEY` | — | KeeperHub relay API key |
+| `UNISWAP_API_KEY` | — | Uniswap Trading API key |
 | `ZERO_G_ENDPOINT` | `https://indexer-storage-testnet-turbo.0g.ai` | 0G indexer URL |
 | `ZERO_G_API_KEY` | — | 0G Storage API key |
 | `POLLING_INTERVAL_MS` | `300000` | Auto-poll interval (5 min) |
 | `PORT` | `3000` | Express API port |
-| `DRY_RUN` | `true` | If `true`, logs trades but does not broadcast |
-| `USE_MOCK_SERVICES` | `true` | If `true`, uses mock data for all services |
+| `DRY_RUN` | `false` | If `true`, simulates trades without broadcasting |
+| `USE_MOCK_SERVICES` | `false` | If `true`, uses mock data for all services |
 
 ---
 
@@ -329,51 +328,25 @@ All thresholds are hardcoded in `src/config/constants.ts`.
 
 ### TypeScript errors
 - Run `npm run typecheck` to see specific errors
-- Ensure `tsconfig.json` has not been modified
-
-### Demo script hangs
-- Check that `.env` exists and `USE_MOCK_SERVICES=true` is set
-- Delete `data/agent-state.json` to reset mock storage: `rm data/agent-state.json`
-
-### Dashboard shows "API Disconnected"
-- Ensure the backend is running on `http://localhost:3000`
-- Check CORS is not blocked (the backend allows all origins in dev)
 
 ### Real mode: transactions fail
 - Verify `PRIVATE_KEY` is set and has testnet ETH for gas
 - Check `DRY_RUN=false` if you want actual broadcasts
 - Ensure `CHAIN_ID=84532` for Base Sepolia
 
+### Dashboard shows "API Disconnected"
+- Ensure the backend is running on `http://localhost:3000`
+- Check CORS is not blocked (the backend allows all origins in dev)
+
 ---
 
-## Hackathon Demo Checklist
+## Prize Track Fit
 
-For judges — run this in one command:
-
-```bash
-npm install
-npm run demo
-```
-
-What the demo shows:
-1. **Autonomous sentiment analysis** — LLM reads news headlines and decides bullish/bearish
-2. **Safety validation** — All 6 rules checked before trade execution
-3. **On-chain execution** — Mock swap submitted via KeeperHub path
-4. **Memory persistence** — Agent state saved to `data/agent-state.json` (0G in real mode)
-5. **Clear reasoning trail** — Every decision logged with confidence, signals, and reasoning
-
-Optional — start the dashboard for visual proof:
-```bash
-# Terminal 1
-USE_MOCK_SERVICES=true npx tsx src/index.ts
-
-# Terminal 2
-cd dashboard && npm install && npm run dev
-# Open http://localhost:5173
-
-# Terminal 3 — trigger a cycle
-curl -X POST http://localhost:3000/api/trigger
-```
+| Sponsor | Why We Fit |
+|---------|------------|
+| **0G** | Decentralized agent memory via 0G Storage HTTP API + gas-efficient on-chain state proxy (`MockPortfolioTracker.sol` stores compact hashes on-chain, full history on 0G) |
+| **KeeperHub** | Execution layer with gasless relay via REST API + automatic direct RPC fallback for resilience |
+| **Uniswap** | Trading API integration with quote fetching, swap calldata generation, and safety validation |
 
 ---
 

@@ -63,8 +63,8 @@ function parseHistory(value: unknown): HistoryItem[] {
       if (!record) return null;
       const alloc = parseAllocation(record.current_allocation);
       const ts = record.timestamp;
-      if (alloc && typeof ts === 'string') {
-        return { current_allocation: alloc, timestamp: ts };
+      if (alloc && (typeof ts === 'number' || typeof ts === 'string')) {
+        return { current_allocation: alloc, timestamp: String(ts) };
       }
       return null;
     })
@@ -98,7 +98,7 @@ const CustomTooltip: React.FC<TooltipProps<number, string>> = ({
           />
           <span className="text-text-primary font-medium">{entry.name}:</span>
           <span className="text-text-secondary">
-            {typeof entry.value === 'number' ? entry.value.toFixed(2) : entry.value}%
+            {typeof entry.value === 'number' ? entry.value.toFixed(0) : entry.value}%
           </span>
         </div>
       ))}
@@ -109,7 +109,7 @@ const CustomTooltip: React.FC<TooltipProps<number, string>> = ({
 export default function AllocationChart({ state }: Props) {
   if (!state) {
     return (
-      <section className="dashboard-card min-h-80 flex flex-col">
+      <section className="dashboard-card h-80 flex flex-col">
         <h2 className="text-xl font-semibold mb-4 font-mono text-accent">
           Portfolio Allocation
         </h2>
@@ -124,7 +124,7 @@ export default function AllocationChart({ state }: Props) {
 
   if (!parsed.current_allocation) {
     return (
-      <section className="dashboard-card min-h-80 flex flex-col">
+      <section className="dashboard-card h-80 flex flex-col">
         <h2 className="text-xl font-semibold mb-4 font-mono text-accent">
           Portfolio Allocation
         </h2>
@@ -136,8 +136,8 @@ export default function AllocationChart({ state }: Props) {
   }
 
   const pieData = [
-    { name: 'WETH', value: parsed.current_allocation.WETH },
-    { name: 'USDC', value: parsed.current_allocation.USDC },
+    { name: 'WETH', value: parsed.current_allocation.WETH * 100 },
+    { name: 'USDC', value: parsed.current_allocation.USDC * 100 },
   ];
 
   const hasHistory = parsed.portfolio_history.length > 0;
@@ -149,8 +149,8 @@ export default function AllocationChart({ state }: Props) {
       : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return {
       time,
-      WETH: item.current_allocation.WETH,
-      USDC: item.current_allocation.USDC,
+      WETH: item.current_allocation.WETH * 100,
+      USDC: item.current_allocation.USDC * 100,
     };
   });
 
@@ -165,7 +165,7 @@ export default function AllocationChart({ state }: Props) {
       </h2>
 
       <div className="flex-1 flex flex-col gap-4">
-        <div className="flex-1 min-h-[140px]">
+        <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -202,7 +202,7 @@ export default function AllocationChart({ state }: Props) {
         </div>
 
         {hasHistory && (
-          <div className="flex-1 min-h-[140px]">
+          <div className="h-[180px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={historyData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <defs>

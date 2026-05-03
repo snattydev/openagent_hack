@@ -1,11 +1,5 @@
-// ---------------------------------------------------------------------------
-// CapyMate – Portfolio allocation logic
-// ---------------------------------------------------------------------------
-
 import { TokenBalance, PortfolioState, LLMDecision } from '../types/index.js';
 import { DEFAULT_ALLOCATION } from '../config/constants.js';
-
-// ── Public API ──────────────────────────────────────────────────────────────
 
 /**
  * Calculate the current allocation weights for WETH and USDC given a list of
@@ -86,12 +80,6 @@ export function calculateTradeAmounts(
   };
 }
 
-/**
- * Format an allocation object as a human-readable string.
- *
- * @param allocation – The allocation weights (must sum to 1).
- * @returns A string such as "WETH: 70.0%, USDC: 30.0%".
- */
 export function formatAllocation(allocation: {
   WETH: number;
   USDC: number;

@@ -1,15 +1,7 @@
-// ---------------------------------------------------------------------------
-// CapyMate – LLM Sentiment Analysis Service
-// OpenAI-compatible adapter with Zod validation and mock fallback
-// ---------------------------------------------------------------------------
-
 import { z } from 'zod';
 import type { LLMDecision, AgentState, NewsItem, TokenBalance } from '../types/index.js';
 import { DEFAULT_ALLOCATION, SAFETY_CONFIG } from '../config/constants.js';
 
-// ── Zod schema ───────────────────────────────────────────────────────────────
-
-/** Zod schema matching {@link LLMDecision} exactly. */
 const llmDecisionSchema = z.object({
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
   confidence: z.number().min(0).max(1),
@@ -20,8 +12,6 @@ const llmDecisionSchema = z.object({
   }),
   key_signals: z.array(z.string()),
 });
-
-// ── Configuration ────────────────────────────────────────────────────────────
 
 interface LLMServiceConfig {
   /** OpenAI-compatible API key. Required for real mode. */
@@ -34,12 +24,8 @@ interface LLMServiceConfig {
   mock?: boolean;
 }
 
-// ── Mock mode constants ──────────────────────────────────────────────────────
-
 const BULLISH_KEYWORDS = ['bullish', 'rally', 'approved', 'surge', 'pump'] as const;
 const BEARISH_KEYWORDS = ['bearish', 'crash', 'hack', 'drop', 'dump'] as const;
-
-// ── Service class ────────────────────────────────────────────────────────────
 
 export class LLMService {
   private apiKey: string;
@@ -53,8 +39,6 @@ export class LLMService {
     this.baseUrl = config.baseUrl ?? 'https://api.openai.com/v1';
     this.mock = config.mock ?? false;
   }
-
-  // ── Public API ───────────────────────────────────────────────────────────
 
   /**
    * Analyze market sentiment from news headlines and current state.
@@ -105,8 +89,6 @@ export class LLMService {
 
     return parsed.data;
   }
-
-  // ── Private helpers ──────────────────────────────────────────────────────
 
   private checkCache(currentState: AgentState): LLMDecision | null {
     if (!currentState.last_decision) {

@@ -17,7 +17,8 @@ export function createRoutes(engine: Engine): Router {
   router.get('/api/state', (_req: Request, res: Response) => {
     try {
       const { last_decision, portfolio_history, timestamp, cycle_count } = engine.state;
-      res.json({ last_decision, portfolio_history, timestamp, cycle_count });
+      const current_allocation = portfolio_history.at(-1)?.current_allocation ?? null;
+      res.json({ last_decision, portfolio_history, timestamp, cycle_count, current_allocation });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -60,11 +61,7 @@ export function createRoutes(engine: Engine): Router {
   });
 
   router.get('/api/health', (_req: Request, res: Response) => {
-    try {
-      res.json({ status: 'ok', timestamp: Date.now() });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
+    res.json({ status: 'ok', timestamp: Date.now() });
   });
 
   return router;

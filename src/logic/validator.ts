@@ -1,7 +1,3 @@
-// ---------------------------------------------------------------------------
-// CapyMate – Safety validation rules for LLM-proposed rebalances
-// ---------------------------------------------------------------------------
-
 import { SAFETY_CONFIG } from '../config/constants.js';
 import type { PortfolioState, LLMDecision, ValidationResult } from '../types/index.js';
 

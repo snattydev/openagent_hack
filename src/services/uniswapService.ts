@@ -146,7 +146,7 @@ export class UniswapService {
    */
   async getSwapCalldata(
     tradeOrder: TradeOrder,
-    recipient?: string,
+    recipient: string,
   ): Promise<{ to: string; data: string; value: string } | null> {
     try {
       if (this.mock) {
@@ -200,7 +200,6 @@ export class UniswapService {
     }
   }
 
-  /** Build a deterministic mock {@link TradeOrder}. */
   private getMockQuote(
     fromToken: string,
     toToken: string,

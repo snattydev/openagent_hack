@@ -88,8 +88,8 @@ npm install
 # Compile contracts
 npx hardhat compile
 
-# Run contract tests
-npx hardhat test
+# Run contract tests (Hardhat v3 — uses mocha directly)
+npx tsx node_modules/.bin/mocha test/*.ts
 
 # Start local node (terminal 1)
 npx hardhat node
@@ -98,7 +98,9 @@ npx hardhat node
 npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-**Expected:** Contract compiles, tests pass, deploys to `0x5FbDB...`.
+**Expected:** Contract compiles, 1 test passing, deploys to `0x5FbDB...`.
+
+**Note:** Hardhat v3 uses `hardhat.network.getOrCreate()` in tests instead of `hardhat.network.provider`. Tests run against an in-memory EDR network — no external node required for `npm run test:contracts`.
 
 ---
 
@@ -129,7 +131,7 @@ Before submission, confirm all of these:
 - [ ] `test-validator.ts` → 8/8 pass
 - [ ] Agent plugin mode → SENSE returns data, DECIDE runs cycle
 - [ ] Hardhat compile → success
-- [ ] Hardhat test → 1 passing
+- [ ] Hardhat test → `npx tsx node_modules/.bin/mocha test/*.ts` → 1 passing
 - [ ] Dashboard build → success
 
 ---

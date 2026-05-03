@@ -1,11 +1,6 @@
-// ---------------------------------------------------------------------------
-// CapyMate – Configuration constants
-// ---------------------------------------------------------------------------
-
 import dotenv from 'dotenv';
 import { ServiceConfig } from '../types/index.js';
 
-// ── Safety thresholds ──────────────────────────────────────────────────────
 export const SAFETY_CONFIG = {
   ALLOWED_TOKENS: ['WETH', 'USDC'] as const,
   MIN_REBALANCE_THRESHOLD: 0.02,
@@ -16,14 +11,10 @@ export const SAFETY_CONFIG = {
   SENTIMENT_CACHE_MINUTES: 10,
 } as const;
 
-// ── Storage configuration ───────────────────────────────────────────────────
-
 export const STORAGE_CONFIG = {
   /** Maximum portfolio history entries to persist (bounds 0G payload size). */
   MAX_PERSISTED_HISTORY_ENTRIES: 20,
 } as const;
-
-// ── Network configuration ───────────────────────────────────────────────────
 
 export const NETWORK_CONFIG = {
   CHAIN_ID: 84532,
@@ -35,14 +26,10 @@ export const NETWORK_CONFIG = {
   USDC_ADDRESS: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
 } as const;
 
-// ── Contract addresses ──────────────────────────────────────────────────────
-
 export const CONTRACT_ADDRESSES = {
   SWAP_ROUTER_02: '0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4',
   ZERO_G_FLOW_CONTRACT: '0x22E03a6A89B950F1c82ec5e74F8ECa321a105296',
 } as const;
-
-// ── External service endpoints ──────────────────────────────────────────────
 
 export const SERVICE_ENDPOINTS = {
   CRYPTOPANIC_BASE_URL: 'https://cryptopanic.com/api/v1',
@@ -50,14 +37,10 @@ export const SERVICE_ENDPOINTS = {
   UNISWAP_TRADE_API: 'https://trade-api.gateway.uniswap.org/v1',
 } as const;
 
-// ── Default portfolio allocation ────────────────────────────────────────────
-
 export const DEFAULT_ALLOCATION = {
   WETH: 0.5,
   USDC: 0.5,
 } as const;
-
-// ── Configuration loader ────────────────────────────────────────────────────
 
 /**
  * Load environment variables via dotenv and return a fully-typed
@@ -72,7 +55,7 @@ export const DEFAULT_ALLOCATION = {
 export function getConfig(): ServiceConfig {
   dotenv.config();
 
-  const useMockServices = process.env.USE_MOCK_SERVICES !== 'false';
+  const useMockServices = process.env.USE_MOCK_SERVICES === 'true';
 
   const privateKey = process.env.PRIVATE_KEY ?? '';
 

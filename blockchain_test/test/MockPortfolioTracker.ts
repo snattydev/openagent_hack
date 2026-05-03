@@ -7,8 +7,11 @@ describe('MockPortfolioTracker', function () {
   let owner: any;
 
   beforeEach(async function () {
-    const provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
-    [owner] = await provider.listAccounts();
+    // Hardhat v3: getOrCreate() returns the in-memory EDR network (no external node required)
+    const network = await hardhat.network.getOrCreate();
+    const provider = new ethers.BrowserProvider(network.provider);
+    const accounts = await provider.listAccounts();
+    owner = accounts[0];
 
     const artifact = await hardhat.artifacts.readArtifact('MockPortfolioTracker');
     const factory = new ethers.ContractFactory(artifact.abi, artifact.bytecode, owner);

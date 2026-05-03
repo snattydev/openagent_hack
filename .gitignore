@@ -35,3 +35,6 @@ playwright-report/
 
 # Personal notes (not for public distribution)
 .personal/
+
+# Rollback backups
+.rollback/

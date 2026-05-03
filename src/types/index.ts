@@ -1,13 +1,5 @@
-// ---------------------------------------------------------------------------
-// CapyMate – Core TypeScript types, interfaces & enums
-// ---------------------------------------------------------------------------
-
-// ── Type aliases ───────────────────────────────────────────────────────────
-
 /** Market sentiment direction. */
 export type Sentiment = 'bullish' | 'bearish' | 'neutral';
-
-// ── Enums ──────────────────────────────────────────────────────────────────
 
 /** Stages in the agentic decision cycle. */
 export enum CycleStep {
@@ -18,8 +10,6 @@ export enum CycleStep {
   EXECUTE = 'EXECUTE',
   LOG = 'LOG',
 }
-
-// ── Core interfaces ────────────────────────────────────────────────────────
 
 /** A decision produced by the LLM after analysing market data. */
 export interface LLMDecision {

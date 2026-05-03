@@ -115,7 +115,7 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 3. REASON ─────────────────────────────────────────────────►
    • Send context to LLM (news + prices + state)
    • Receive sentiment, confidence, target_allocation
-   • Zod validation: loose → normalize percentages → strict
+   • Zod validation: strict schema enforces typed LLM output
 
 4. VALIDATE ───────────────────────────────────────────────►
    • Rule 1: Token whitelist [WETH, USDC]
@@ -134,7 +134,7 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 6. LOG ────────────────────────────────────────────────────►
    • Prune portfolio_history to MAX_PERSISTED_HISTORY_ENTRIES (20)
    • Save state to 0G Storage
-   • Record: timestamp, decision, tx_hash, reasoning
+   • Record: timestamp, decision, reasoning
 ```
 
 ---
@@ -228,14 +228,16 @@ class MyService {
 
 Benefit: Entire stack runs without API keys. Demo-ready.
 
-### 3. Zod Two-Pass Validation
+### 3. Zod Validation
 
-LLM outputs are validated twice:
-1. **Loose schema** — accepts percentages (80, 20) or decimals (0.8, 0.2)
-2. **Normalization** — converts percentages to decimals if sum > 1.5
-3. **Strict schema** — validates decimals are in [0, 1]
+LLM outputs are validated with a strict Zod schema (`llmDecisionSchema`) that enforces:
+- `sentiment`: `'bullish' | 'bearish' | 'neutral'`
+- `confidence`: number in [0, 1]
+- `target_allocation.WETH` and `.USDC`: numbers (should sum to ~1.0)
+- `reasoning`: string
+- `key_signals`: string[]
 
-This handles DeepSeek, GPT, Claude output variations gracefully.
+If validation fails, the engine falls back to the last known decision or default allocation. Host agents using plugin mode should validate their own output before calling `/api/decide`.
 
 ### 4. Config Loading
 
@@ -270,7 +272,7 @@ npm run typecheck  # tsc --noEmit
 cd blockchain_test
 npm install
 npx hardhat compile
-npx hardhat test
+npx tsx node_modules/.bin/mocha test/*.ts
 npx hardhat run scripts/deploy.ts --network localhost
 ```
 

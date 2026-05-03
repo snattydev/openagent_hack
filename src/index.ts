@@ -10,10 +10,6 @@ import { KeeperService } from './services/keeperService.js';
 import { Engine } from './logic/engine.js';
 import { startServer } from './api/server.js';
 
-/**
- * Initialise all services and start the agent.
- * Exported for testability.
- */
 export async function main(): Promise<http.Server> {
   const config = getConfig();
 
@@ -88,7 +84,6 @@ export async function main(): Promise<http.Server> {
   return server;
 }
 
-// Run when executed directly
 main().catch((err) => {
   console.error('Failed to start:', err);
   process.exit(1);
