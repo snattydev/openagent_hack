@@ -1,6 +1,17 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import { Engine } from '../logic/engine.js';
-import type { LLMDecision } from '../types/index.js';
+
+const decideSchema = z.object({
+  sentiment: z.enum(['bullish', 'bearish', 'neutral']),
+  confidence: z.number().min(0).max(1),
+  reasoning: z.string().max(500),
+  target_allocation: z.object({
+    WETH: z.number().min(0).max(1),
+    USDC: z.number().min(0).max(1),
+  }),
+  key_signals: z.array(z.string()).max(20),
+});
 
 export function createRoutes(engine: Engine): Router {
   const router = Router();
@@ -44,16 +55,12 @@ export function createRoutes(engine: Engine): Router {
 
   router.post('/api/decide', async (req: Request, res: Response) => {
     try {
-      const decision = req.body as LLMDecision;
-      if (!decision || typeof decision !== 'object') {
-        res.status(400).json({ error: 'Missing decision payload' });
+      const parseResult = decideSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        res.status(400).json({ error: 'Invalid decision payload', details: parseResult.error.format() });
         return;
       }
-      if (!decision.sentiment || !decision.target_allocation) {
-        res.status(400).json({ error: 'Decision must include sentiment and target_allocation' });
-        return;
-      }
-      const results = await engine.decide(decision);
+      const results = await engine.decide(parseResult.data);
       res.json(results);
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
