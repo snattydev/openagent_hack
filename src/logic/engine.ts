@@ -5,6 +5,9 @@ import type {
   AgentState,
   PortfolioState,
   ServiceConfig,
+  LLMDecision,
+  NewsItem,
+  TokenBalance,
 } from '../types/index.js';
 import { SAFETY_CONFIG } from '../config/constants.js';
 import type { BalanceService } from '../services/balanceService.js';
@@ -344,6 +347,165 @@ export class Engine {
       }
     } finally {
       this.isRunning = false;
+    }
+
+    return results;
+  }
+
+  /**
+   * Run only the SENSE step and return market data.
+   * Used by host agents to get current portfolio state + news.
+   */
+  async sense(): Promise<{
+    portfolio: PortfolioState;
+    news: NewsItem[];
+  }> {
+    const walletAddress = this.getWalletAddress();
+    const [portfolio, news] = await Promise.all([
+      this.balanceService.getWalletBalances(walletAddress),
+      this.newsService.fetchNews(['BTC', 'ETH']),
+    ]);
+    this.state.portfolio_history.push(portfolio);
+    return { portfolio, news };
+  }
+
+  /**
+   * Accept an LLM decision from a host agent and run VALIDATE→EXECUTE→LOG.
+   * Returns the full cycle results for those steps.
+   */
+  async decide(decision: LLMDecision): Promise<CycleResult[]> {
+    const results: CycleResult[] = [];
+
+    this.state.last_decision = decision;
+    this.state.reasoning = decision.reasoning;
+
+    let currentPortfolio = this.state.portfolio_history.at(-1) ?? null;
+    if (!currentPortfolio) {
+      const walletAddress = this.getWalletAddress();
+      currentPortfolio = await this.balanceService.getWalletBalances(walletAddress);
+    }
+
+    // ── VALIDATE ──────────────────────────────────────────────────────
+    let validationResult: { valid: boolean; reason?: string } | null = null;
+    try {
+      validationResult = validateRebalance(
+        currentPortfolio,
+        decision,
+        this.dailyTradeCount,
+        this.lastTradeTime,
+      );
+      results.push({
+        step: CycleStep.VALIDATE,
+        timestamp: Date.now(),
+        data: validationResult,
+        success: true,
+      });
+    } catch (err) {
+      console.error('[Engine] VALIDATE error:', errMsg(err));
+      results.push({
+        step: CycleStep.VALIDATE,
+        timestamp: Date.now(),
+        data: null,
+        success: false,
+        error: errMsg(err),
+      });
+    }
+
+    // ── EXECUTE ───────────────────────────────────────────────────────
+    try {
+      if (validationResult?.valid && currentPortfolio) {
+        const portfolio = currentPortfolio;
+        const wethEntry = portfolio.balances.find((b) => b.token === 'WETH');
+
+        const tradeAmount = calculateTradeAmounts(portfolio, decision);
+
+        if (tradeAmount) {
+          const wethPrice = wethEntry?.price_usd ?? 0;
+          let rawAmount: string;
+          try {
+            if (tradeAmount.from_token === 'WETH') {
+              const wethAmount = wethPrice > 0 ? tradeAmount.amount_usd / wethPrice : 0;
+              rawAmount = parseUnits(wethAmount.toFixed(18), 18).toString();
+            } else {
+              rawAmount = parseUnits(tradeAmount.amount_usd.toFixed(6), 6).toString();
+            }
+          } catch {
+            rawAmount = '0';
+          }
+
+          const quote = await this.uniswapService.getQuote(
+            tradeAmount.from_token,
+            tradeAmount.to_token,
+            rawAmount,
+          );
+
+          let txHash = '';
+          if (quote) {
+            const calldata = await this.uniswapService.getSwapCalldata(quote);
+            if (calldata) {
+              txHash = await this.keeperService.submitTransaction(calldata);
+            }
+          }
+
+          this.dailyTradeCount += 1;
+          this.lastTradeTime = Date.now();
+
+          results.push({
+            step: CycleStep.EXECUTE,
+            timestamp: Date.now(),
+            data: { quote, txHash },
+            success: true,
+          });
+        } else {
+          results.push({
+            step: CycleStep.EXECUTE,
+            timestamp: Date.now(),
+            data: { skipped: true, reason: 'No rebalance needed' },
+            success: true,
+          });
+        }
+      } else {
+        results.push({
+          step: CycleStep.EXECUTE,
+          timestamp: Date.now(),
+          data: {
+            skipped: true,
+            reason: validationResult != null ? 'Validation did not pass' : 'No validation result',
+          },
+          success: true,
+        });
+      }
+    } catch (err) {
+      console.error('[Engine] EXECUTE error:', errMsg(err));
+      results.push({
+        step: CycleStep.EXECUTE,
+        timestamp: Date.now(),
+        data: null,
+        success: false,
+        error: errMsg(err),
+      });
+    }
+
+    // ── LOG ───────────────────────────────────────────────────────────
+    try {
+      this.state.cycle_count += 1;
+      this.state.timestamp = Date.now();
+      await this.zeroGService.saveState(AGENT_ID, this.state);
+      results.push({
+        step: CycleStep.LOG,
+        timestamp: Date.now(),
+        data: this.state,
+        success: true,
+      });
+    } catch (err) {
+      console.error('[Engine] LOG error:', errMsg(err));
+      results.push({
+        step: CycleStep.LOG,
+        timestamp: Date.now(),
+        data: null,
+        success: false,
+        error: errMsg(err),
+      });
     }
 
     return results;

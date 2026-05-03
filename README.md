@@ -15,6 +15,18 @@ The agent runs a 6-step autonomous loop:
 
 The agent is fully mockable — it runs end-to-end without any API keys for safe local testing and hackathon demos.
 
+### Agent Plugin Mode (No API Keys Needed)
+
+CapyMate can run as a **plugin for any AI agent** (OpenCode, Claude Code, etc.). The host agent provides the LLM reasoning; CapyMate handles validation, execution, and persistent memory.
+
+**Flow:**
+1. Host agent calls `POST /api/sense` → receives current portfolio + news
+2. Host agent runs its own LLM to analyze sentiment and decide allocation
+3. Host agent calls `POST /api/decide` ← injects the decision
+4. CapyMate validates, executes the trade, and logs state
+
+This means **zero API keys required** — the host agent's existing LLM handles reasoning, and CapyMate handles the crypto-specific work.
+
 ---
 
 ## Tech Stack
@@ -153,7 +165,9 @@ In **real mode**, the agent auto-polls every `POLLING_INTERVAL_MS` (default: 5 m
 | GET | `/api/health` | Health check |
 | GET | `/api/status` | Agent status: `isRunning`, `cycleCount`, `dailyTradeCount` |
 | GET | `/api/state` | Full agent state: `last_decision`, `portfolio_history`, `cycle_count` |
-| POST | `/api/trigger` | Manually trigger one agent cycle |
+| POST | `/api/trigger` | Manually trigger one full SENSE→REASON→VALIDATE→EXECUTE→LOG cycle |
+| POST | `/api/sense` | Run SENSE step only — returns portfolio + news (for host agents) |
+| POST | `/api/decide` | Accept an LLM decision and run VALIDATE→EXECUTE→LOG (for host agents) |
 
 Example:
 ```bash
@@ -161,7 +175,28 @@ curl http://localhost:3000/api/status
 # {"isRunning":false,"lastCycle":0,"cycleCount":0,"dailyTradeCount":0}
 
 curl -X POST http://localhost:3000/api/trigger
-# Runs one full SENSE→REMEMBER→REASON→VALIDATE→EXECUTE→LOG cycle
+# Runs one full SENSE→REASON→VALIDATE→EXECUTE→LOG cycle
+```
+
+**Agent Plugin Mode Example:**
+```bash
+# 1. Get market data
+curl -X POST http://localhost:3000/api/sense
+# → { "portfolio": { "balances": [...], "total_value_usd": 1234.56 }, "news": [...] }
+
+# 2. Host agent analyzes sentiment and decides allocation
+
+# 3. Inject decision
+curl -X POST http://localhost:3000/api/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sentiment": "bullish",
+    "confidence": 0.85,
+    "reasoning": "ETH ETF approval signals strong upside",
+    "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
+    "key_signals": ["SEC approves Ethereum ETF"]
+  }'
+# → VALIDATE → EXECUTE → LOG results
 ```
 
 ### Start the Dashboard
