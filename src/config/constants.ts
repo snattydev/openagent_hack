@@ -12,7 +12,6 @@ export const SAFETY_CONFIG = {
 } as const;
 
 export const STORAGE_CONFIG = {
-  /** Maximum portfolio history entries to persist (bounds 0G payload size). */
   MAX_PERSISTED_HISTORY_ENTRIES: 20,
 } as const;
 
@@ -20,9 +19,6 @@ export const NETWORK_CONFIG = {
   CHAIN_ID: 84532,
   RPC_URL: process.env.RPC_URL ?? '',
   WETH_ADDRESS: '0x4200000000000000000000000000000000000006',
-  /** Circle-issued USDC on Base Sepolia (FiatTokenV2_2 proxy, 6 decimals).
-   *  Verified 2026-04-28 via Circle docs & BaseScan Sepolia.
-   *  Source: https://sepolia.basescan.org/token/0x036cbd53842c5426634e7929541ec2318f3dcf7e */
   USDC_ADDRESS: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
 } as const;
 
@@ -42,28 +38,15 @@ export const DEFAULT_ALLOCATION = {
   USDC: 0.5,
 } as const;
 
-/**
- * Load environment variables via dotenv and return a fully-typed
- * {@link ServiceConfig} object.
- *
- * Sensible defaults are provided for non-sensitive values so that the
- * application can run in demo / mock mode with minimal configuration.
- *
- * @throws {Error} If `PRIVATE_KEY` is missing while `USE_MOCK_SERVICES` is
- *   explicitly set to `false` or not set.
- */
 export function getConfig(): ServiceConfig {
   dotenv.config();
 
-  const useMockServices = process.env.USE_MOCK_SERVICES === 'true';
-
   const privateKey = process.env.PRIVATE_KEY ?? '';
 
-  if (!privateKey && !useMockServices) {
+  if (!privateKey) {
     throw new Error(
-      'PRIVATE_KEY is required when USE_MOCK_SERVICES is false. ' +
-        'Set PRIVATE_KEY in your .env file, or set USE_MOCK_SERVICES=true ' +
-        'to run in demo mode without real wallet credentials.',
+      'PRIVATE_KEY is required. Set it in your .env file. ' +
+        'Use DRY_RUN=true if you want to simulate without broadcasting.',
     );
   }
 
@@ -81,7 +64,6 @@ export function getConfig(): ServiceConfig {
     cryptopanicApiKey: process.env.CRYPTOPANIC_API_KEY ?? '',
     pollingIntervalMs: Number(process.env.POLLING_INTERVAL_MS) || 300000,
     port: Number(process.env.PORT) || 3000,
-    dryRun: process.env.DRY_RUN !== 'false',
-    useMockServices,
+    dryRun: process.env.DRY_RUN === 'true',
   };
 }

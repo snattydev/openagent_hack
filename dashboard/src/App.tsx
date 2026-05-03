@@ -73,7 +73,7 @@ export default function App() {
 
       <main className="grid grid-cols-3 gap-6">
         <div className="col-span-1">
-          <StatusCard status={status} />
+          <StatusCard status={status} totalValue={typeof state?.current_allocation === 'object' && state?.portfolio_history && Array.isArray(state.portfolio_history) ? (state.portfolio_history as Array<{ total_value_usd?: number }>).at(-1)?.total_value_usd ?? null : null} />
         </div>
         <div className="col-span-2">
           <AllocationChart state={state} />

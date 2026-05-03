@@ -6,7 +6,6 @@ export interface KeeperServiceOptions {
   privateKey?: string;
   keeperHubApiKey?: string;
   chainId?: number;
-  mock?: boolean;
   dryRun?: boolean;
 }
 
@@ -15,7 +14,6 @@ export class KeeperService {
   private readonly privateKey: string;
   private readonly keeperHubApiKey: string;
   private readonly chainId: number;
-  private readonly mock: boolean;
   private readonly dryRun: boolean;
 
   constructor(options: KeeperServiceOptions = {}) {
@@ -23,17 +21,9 @@ export class KeeperService {
     this.privateKey = options.privateKey ?? '';
     this.keeperHubApiKey = options.keeperHubApiKey ?? '';
     this.chainId = options.chainId ?? NETWORK_CONFIG.CHAIN_ID;
-    this.mock = options.mock ?? false;
     this.dryRun = options.dryRun ?? false;
   }
 
-  /**
-   * Submit a transaction.  Depending on configuration this may:
-   * 1. Perform a dry-run (log only, no broadcast).
-   * 2. Execute in mock mode (return a fake hash).
-   * 3. Submit via KeeperHub REST API (planned).
-   * 4. Fallback to direct RPC broadcast via ethers.js v6.
-   */
   async submitTransaction(calldata: {
     to: string;
     data: string;
@@ -45,12 +35,7 @@ export class KeeperService {
       console.log(
         `[DRY RUN] Would submit tx: to=${to}, data=${data}, value=${value}`,
       );
-      return this.generateMockHash();
-    }
-
-    if (this.mock) {
-      console.log('[MOCK] Transaction submitted');
-      return this.generateMockHash();
+      return this.generatePlaceholderHash();
     }
 
     if (this.keeperHubApiKey) {
@@ -63,15 +48,15 @@ export class KeeperService {
 
     if (!this.privateKey) {
       throw new Error(
-        'Cannot submit transaction: privateKey is required in real mode. ' +
-          'Set privateKey in options or enable mock/dryRun mode.',
+        'Cannot submit transaction: privateKey is required. ' +
+          'Set PRIVATE_KEY in your .env file, or enable DRY_RUN mode.',
       );
     }
 
     if (!this.rpcUrl) {
       throw new Error(
-        'Cannot submit transaction: rpcUrl is required in real mode. ' +
-          'Set rpcUrl in options or enable mock/dryRun mode.',
+        'Cannot submit transaction: rpcUrl is required. ' +
+          'Set RPC_URL in your .env file, or enable DRY_RUN mode.',
       );
     }
 
@@ -160,7 +145,7 @@ export class KeeperService {
     throw new Error('KeeperHub tx timeout after 5 minutes');
   }
 
-  private generateMockHash(): string {
+  private generatePlaceholderHash(): string {
     const hex = Array.from({ length: 64 }, () =>
       Math.floor(Math.random() * 16).toString(16),
     ).join('');

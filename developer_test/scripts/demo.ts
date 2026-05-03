@@ -1,44 +1,95 @@
 import { getConfig } from '../../src/config/constants.js';
-import { BalanceService } from '../../src/services/balanceService.js';
-import { ZeroGService } from '../../src/services/0gService.js';
-import { NewsService } from '../../src/services/newsService.js';
-import { LLMService } from '../../src/services/llmService.js';
-import { UniswapService } from '../../src/services/uniswapService.js';
-import { KeeperService } from '../../src/services/keeperService.js';
 import { Engine } from '../../src/logic/engine.js';
-import { NewsItem, CycleStep, LLMDecision, AgentState, TokenBalance } from '../../src/types/index.js';
+import { CycleStep } from '../../src/types/index.js';
+import type { NewsItem, LLMDecision, AgentState, PortfolioState, TokenBalance } from '../../src/types/index.js';
 
-class DemoNewsService extends NewsService {
+class DemoBalanceService {
+  async getWalletBalances(): Promise<PortfolioState> {
+    return {
+      balances: [
+        { token: 'WETH', amount: 1.5, decimals: 18, price_usd: 2000 },
+        { token: 'USDC', amount: 3000, decimals: 6, price_usd: 1 },
+      ],
+      total_value_usd: 6000,
+      current_allocation: { WETH: 0.5, USDC: 0.5 },
+      target_allocation: { WETH: 0.5, USDC: 0.5 },
+      timestamp: Date.now(),
+    };
+  }
+}
+
+class Demo0GService {
+  private storage: Record<string, AgentState> = {};
+
+  async loadState(agentId: string): Promise<AgentState | null> {
+    return this.storage[agentId] ?? null;
+  }
+
+  async saveState(agentId: string, state: AgentState): Promise<void> {
+    this.storage[agentId] = state;
+  }
+}
+
+class DemoNewsService {
   private customNews: NewsItem[] | null = null;
 
   setCustomNews(news: NewsItem[]) {
     this.customNews = news;
   }
 
-  async fetchNews(currencies: string[]): Promise<NewsItem[]> {
-    if (this.customNews) {
-      return this.customNews;
-    }
-    return super.fetchNews(currencies);
+  async fetchNews(): Promise<NewsItem[]> {
+    return this.customNews ?? [];
   }
 }
 
-class DemoLLMService extends LLMService {
+class DemoLLMService {
   private customDecision: LLMDecision | null = null;
 
   setCustomDecision(decision: LLMDecision) {
     this.customDecision = decision;
   }
 
-  async analyzeSentiment(
-    news: NewsItem[],
-    currentState: AgentState,
-    prices: TokenBalance[],
-  ): Promise<LLMDecision> {
+  async analyzeSentiment(): Promise<LLMDecision> {
     if (this.customDecision) {
       return this.customDecision;
     }
-    return super.analyzeSentiment(news, currentState, prices);
+    return {
+      sentiment: 'neutral',
+      confidence: 0.5,
+      reasoning: 'Default fallback',
+      target_allocation: { WETH: 0.5, USDC: 0.5 },
+      key_signals: [],
+    };
+  }
+}
+
+class DemoUniswapService {
+  async getQuote(fromToken: string, _toToken: string, amount: string) {
+    return {
+      from_token: fromToken,
+      to_token: fromToken === 'WETH' ? 'USDC' : 'WETH',
+      amount,
+      expected_output: '0',
+      slippage: 0.005,
+      route_data: { mock: true },
+    };
+  }
+
+  async getSwapCalldata() {
+    return {
+      to: '0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4',
+      data: '0xc04...',
+      value: '0',
+    };
+  }
+}
+
+class DemoKeeperService {
+  async submitTransaction() {
+    const hex = Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16),
+    ).join('');
+    return `0x${hex}`;
   }
 }
 
@@ -60,26 +111,24 @@ async function main() {
   printSeparator();
 
   const config = getConfig();
-  if (!config.useMockServices) {
-    console.warn('Forcing USE_MOCK_SERVICES=true for safety');
-    config.useMockServices = true;
-  }
-  console.log('Config loaded. Mock mode:', config.useMockServices);
+  config.privateKey = '0x' + '1'.repeat(64);
+  config.dryRun = true;
+  console.log('Config loaded. DRY_RUN:', config.dryRun);
 
-  const balanceService = new BalanceService({ mock: true });
-  const zeroGService = new ZeroGService({ mock: true });
-  const newsService = new DemoNewsService({ mock: true });
-  const llmService = new DemoLLMService({ mock: true });
-  const uniswapService = new UniswapService({ mock: true });
-  const keeperService = new KeeperService({ mock: true, dryRun: true });
+  const balanceService = new DemoBalanceService();
+  const zeroGService = new Demo0GService();
+  const newsService = new DemoNewsService();
+  const llmService = new DemoLLMService();
+  const uniswapService = new DemoUniswapService();
+  const keeperService = new DemoKeeperService();
 
   const engine = new Engine({
-    balanceService,
-    zeroGService,
-    newsService,
-    llmService,
-    uniswapService,
-    keeperService,
+    balanceService: balanceService as any,
+    zeroGService: zeroGService as any,
+    newsService: newsService as any,
+    llmService: llmService as any,
+    uniswapService: uniswapService as any,
+    keeperService: keeperService as any,
     config,
   });
 
@@ -213,7 +262,7 @@ async function main() {
   }
 
   printSeparator();
-  console.log('Demo complete. Check data/agent-state.json for persisted state.');
+  console.log('Demo complete.');
   printSeparator();
 }
 

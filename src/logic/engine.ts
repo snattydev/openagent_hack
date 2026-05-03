@@ -444,8 +444,8 @@ export class Engine {
   }
 
   private getWalletAddress(): string {
-    if (this.config.useMockServices || !this.config.privateKey) {
-      return '0x0000000000000000000000000000000000000001';
+    if (!this.config.privateKey) {
+      throw new Error('PRIVATE_KEY is required');
     }
     return new Wallet(this.config.privateKey).address;
   }

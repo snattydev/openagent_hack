@@ -106,7 +106,6 @@ export interface ServiceConfig {
   pollingIntervalMs: number;
   port: number;
   dryRun: boolean;
-  useMockServices: boolean;
 }
 
 /** Result metadata for a single step in the decision cycle. */

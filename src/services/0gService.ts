@@ -6,15 +6,13 @@ export interface ZeroGServiceOptions {
   indexerUrl?: string;
   apiKey?: string;
   flowContract?: string;
-  mock?: boolean;
 }
 
 export class ZeroGService {
   private readonly indexerUrl: string;
   private readonly apiKey: string;
   private readonly flowContract: string;
-  private readonly mock: boolean;
-  private readonly mockFilePath: string;
+  private readonly localFilePath: string;
 
   constructor(options: ZeroGServiceOptions = {}) {
     this.indexerUrl =
@@ -22,15 +20,10 @@ export class ZeroGService {
     this.apiKey = options.apiKey ?? '';
     this.flowContract =
       options.flowContract ?? '0x22E03a6A89B950F1c82ec5e74F8ECa321a105296';
-    this.mock = options.mock ?? false;
-    this.mockFilePath = resolve(process.cwd(), 'data', 'agent-state.json');
+    this.localFilePath = resolve(process.cwd(), 'data', 'agent-state.json');
   }
 
   async loadState(agentId: string): Promise<AgentState | null> {
-    if (this.mock) {
-      return this.loadFromMock(agentId);
-    }
-
     try {
       const url = new URL(`/kv/${encodeURIComponent(agentId)}`, this.indexerUrl);
       url.searchParams.set('contract', this.flowContract);
@@ -48,9 +41,9 @@ export class ZeroGService {
 
       if (!response.ok) {
         console.warn(
-          `[ZeroGService] loadState failed: ${response.status} ${response.statusText}. Falling back to mock.`,
+          `[ZeroGService] loadState failed: ${response.status} ${response.statusText}. Falling back to local file.`,
         );
-        return this.loadFromMock(agentId);
+        return this.loadFromLocal(agentId);
       }
 
       const raw = await response.text();
@@ -62,16 +55,11 @@ export class ZeroGService {
         '[ZeroGService] loadState error (0G may be unavailable):',
         err instanceof Error ? err.message : String(err),
       );
-      return this.loadFromMock(agentId);
+      return this.loadFromLocal(agentId);
     }
   }
 
   async saveState(agentId: string, state: AgentState): Promise<void> {
-    if (this.mock) {
-      await this.saveToMock(agentId, state);
-      return;
-    }
-
     try {
       const url = new URL('/kv', this.indexerUrl);
 
@@ -94,9 +82,9 @@ export class ZeroGService {
 
       if (!response.ok) {
         console.warn(
-          `[ZeroGService] saveState failed: ${response.status} ${response.statusText}. Falling back to mock.`,
+          `[ZeroGService] saveState failed: ${response.status} ${response.statusText}. Falling back to local file.`,
         );
-        await this.saveToMock(agentId, state);
+        await this.saveToLocal(agentId, state);
         return;
       }
 
@@ -106,13 +94,13 @@ export class ZeroGService {
         '[ZeroGService] saveState error (0G may be unavailable):',
         err instanceof Error ? err.message : String(err),
       );
-      await this.saveToMock(agentId, state);
+      await this.saveToLocal(agentId, state);
     }
   }
 
-  private async loadFromMock(agentId: string): Promise<AgentState | null> {
+  private async loadFromLocal(agentId: string): Promise<AgentState | null> {
     try {
-      const raw = await readFile(this.mockFilePath, 'utf-8');
+      const raw = await readFile(this.localFilePath, 'utf-8');
       const data = JSON.parse(raw) as Record<string, AgentState>;
       return data[agentId] ?? null;
     } catch (err) {
@@ -120,12 +108,12 @@ export class ZeroGService {
       if (code === 'ENOENT') {
         return null;
       }
-      console.error('[ZeroGService] Failed to read mock state file:', err);
+      console.error('[ZeroGService] Failed to read local state file:', err);
       return null;
     }
   }
 
-  private async saveToMock(agentId: string, state: AgentState): Promise<void> {
+  private async saveToLocal(agentId: string, state: AgentState): Promise<void> {
     try {
       const dataDir = resolve(process.cwd(), 'data');
       try {
@@ -136,12 +124,12 @@ export class ZeroGService {
 
       let data: Record<string, AgentState> = {};
       try {
-        const raw = await readFile(this.mockFilePath, 'utf-8');
+        const raw = await readFile(this.localFilePath, 'utf-8');
         data = JSON.parse(raw) as Record<string, AgentState>;
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code !== 'ENOENT') {
-          console.error('[ZeroGService] Failed to parse existing mock state, starting fresh:', err);
+          console.error('[ZeroGService] Failed to parse existing local state, starting fresh:', err);
         }
         data = {};
       }
@@ -149,12 +137,12 @@ export class ZeroGService {
       data[agentId] = state;
 
       await writeFile(
-        this.mockFilePath,
+        this.localFilePath,
         JSON.stringify(data, null, 2) + '\n',
         'utf-8',
       );
     } catch (err) {
-      console.error('[ZeroGService] Failed to write mock state file:', err);
+      console.error('[ZeroGService] Failed to write local state file:', err);
     }
   }
 }

@@ -85,6 +85,7 @@ export default function TradeHistory({ state }: Props) {
               <th className="pb-3 pr-4 text-sm font-medium text-text-secondary">Timestamp</th>
               <th className="pb-3 pr-4 text-sm font-medium text-text-secondary">WETH</th>
               <th className="pb-3 pr-4 text-sm font-medium text-text-secondary">USDC</th>
+              <th className="pb-3 pr-4 text-sm font-medium text-text-secondary text-right">Rebalanced</th>
               <th className="pb-3 text-sm font-medium text-text-secondary text-right">Total Value</th>
             </tr>
           </thead>
@@ -104,6 +105,8 @@ export default function TradeHistory({ state }: Props) {
 
               const wethDiff = wethAfter - wethBefore;
               const usdcDiff = usdcAfter - usdcBefore;
+              const rebalanceAmount = Math.abs(wethDiff) * item.total_value_usd;
+              const valueChange = prevItem ? item.total_value_usd - prevItem.total_value_usd : 0;
 
               return (
                 <tr
@@ -144,8 +147,25 @@ export default function TradeHistory({ state }: Props) {
                       {formatPercent(usdcAfter)}
                     </span>
                   </td>
-                  <td className="py-3 text-right font-mono text-text-primary">
-                    {formatUsd(item.total_value_usd)}
+                  <td className="py-3 pr-4 text-right font-mono text-text-primary">
+                    {rebalanceAmount > 0 ? formatUsd(rebalanceAmount) : '—'}
+                  </td>
+                  <td className="py-3 text-right font-mono">
+                    <span className="text-text-primary">{formatUsd(item.total_value_usd)}</span>
+                    {prevItem && (
+                      <span
+                        className={`ml-2 text-xs ${
+                          valueChange > 0
+                            ? 'text-emerald-400'
+                            : valueChange < 0
+                              ? 'text-rose-400'
+                              : 'text-text-secondary'
+                        }`}
+                      >
+                        {valueChange > 0 ? '+' : ''}
+                        {formatUsd(valueChange)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               );

@@ -17,31 +17,26 @@ export async function main(): Promise<http.Server> {
 
   const balanceService = new BalanceService({
     provider,
-    mock: config.useMockServices,
   });
 
   const zeroGService = new ZeroGService({
     indexerUrl: config.zeroGEndpoint,
     apiKey: config.zeroGApiKey,
-    mock: config.useMockServices,
   });
 
   const newsService = new NewsService({
     apiKey: config.cryptopanicApiKey,
-    mock: config.useMockServices,
   });
 
   const llmService = new LLMService({
     apiKey: config.llmApiKey,
     model: config.llmModel,
     baseUrl: config.llmBaseUrl,
-    mock: config.useMockServices,
   });
 
   const uniswapService = new UniswapService({
     apiKey: config.uniswapApiKey,
     chainId: config.chainId,
-    mock: config.useMockServices,
   });
 
   const keeperService = new KeeperService({
@@ -49,7 +44,6 @@ export async function main(): Promise<http.Server> {
     privateKey: config.privateKey,
     keeperHubApiKey: config.keeperHubApiKey,
     chainId: config.chainId,
-    mock: config.useMockServices,
     dryRun: config.dryRun,
   });
 
@@ -66,12 +60,12 @@ export async function main(): Promise<http.Server> {
   const server = startServer(engine, config.port);
 
   console.log(
-    `CapyMate agent started on port ${config.port} [mock=${config.useMockServices}, dryRun=${config.dryRun}]`,
+    `CapyMate agent started on port ${config.port} [dryRun=${config.dryRun}]`,
   );
 
-  if (!config.useMockServices) {
-    setInterval(() => { engine.runCycle().catch((err) => console.error('[Polling] Cycle error:', err)); }, config.pollingIntervalMs);
-  }
+  setInterval(() => {
+    engine.runCycle().catch((err) => console.error('[Polling] Cycle error:', err));
+  }, config.pollingIntervalMs);
 
   const shutdown = (): void => {
     console.log('Shutting down...');

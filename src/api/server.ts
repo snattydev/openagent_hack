@@ -9,7 +9,7 @@ export function createApp(engine: Engine): Express {
   const app = express();
   const config = getConfig();
 
-  app.use(cors({ origin: config.useMockServices ? '*' : undefined }));
+  app.use(cors({ origin: '*' }));
   app.use(express.json());
   app.use(createRoutes(engine));
 
