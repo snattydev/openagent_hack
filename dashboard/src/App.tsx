@@ -12,7 +12,22 @@ type AgentStatus = {
   dailyTradeCount: number;
 };
 
-type AgentState = Record<string, unknown>;
+type PortfolioSnapshot = {
+  total_value_usd: number;
+  current_allocation: { WETH: number; USDC: number };
+  target_allocation: { WETH: number; USDC: number };
+  timestamp: number;
+  balances: Array<{ token: string; amount: number; price_usd?: number }>;
+};
+
+type AgentState = {
+  cycle_count: number;
+  timestamp: number;
+  last_decision: Record<string, unknown> | null;
+  portfolio_history: PortfolioSnapshot[];
+  current_allocation: { WETH: number; USDC: number } | null;
+  reasoning: string;
+};
 
 export default function App() {
   const [status, setStatus] = useState<AgentStatus | null>(null);
@@ -48,6 +63,9 @@ export default function App() {
     };
   }, []);
 
+  const latestPortfolio = state?.portfolio_history?.at(-1);
+  const totalValue = latestPortfolio?.total_value_usd ?? null;
+
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans p-8">
       <header className="mb-8 flex items-center justify-between">
@@ -73,7 +91,7 @@ export default function App() {
 
       <main className="grid grid-cols-3 gap-6">
         <div className="col-span-1">
-          <StatusCard status={status} totalValue={typeof state?.current_allocation === 'object' && state?.portfolio_history && Array.isArray(state.portfolio_history) ? (state.portfolio_history as Array<{ total_value_usd?: number }>).at(-1)?.total_value_usd ?? null : null} />
+          <StatusCard status={status} totalValue={totalValue} />
         </div>
         <div className="col-span-2">
           <AllocationChart state={state} />

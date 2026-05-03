@@ -1,305 +1,202 @@
 # CapyMate
 
-**AI Agent Crypto Harness — Plugin any LLM into DeFi trading with safety guardrails.**
+> **Autonomous Web3 AI Agent — Crypto Portfolio Manager with Transparent Reasoning**
+>
+> Built for the ETHGlobal OpenAgent Hackathon
 
-Built for the ETHGlobal OpenAgent Hackathon.
+## The Problem
 
-CapyMate is a drop-in crypto execution layer for AI agents. Your agent (Claude, GPT-4, DeepSeek, etc.) provides the reasoning; CapyMate handles validation, on-chain execution via Uniswap, decentralized memory via 0G, and transaction relay via KeeperHub.
+Crypto traders make emotional decisions. They panic-sell dips, FOMO-buy tops, and abandon their strategy at the worst moments. **CapyMate removes the human from the execution loop.**
 
-**Zero configuration for host agents.** CapyMate exposes a clean REST API. The host agent calls `POST /api/sense` to get market data, runs its own LLM to decide allocation, then calls `POST /api/decide` to execute — with 6 hardcoded safety rules enforcing every trade.
+It reads market news, runs sentiment analysis through an LLM, validates every trade against hard safety rules, executes on-chain via Uniswap, stores its reasoning transparently on 0G, and routes transactions privately through KeeperHub — all autonomously, 24/7.
 
-CapyMate also runs **autonomously** with its own LLM for fully automated sentiment-driven rebalancing.
+## What It Does
 
----
-
-## Agent Plugin Mode (Primary)
-
-CapyMate runs as a harness that any AI agent can use as its crypto execution and memory layer.
-
-**Flow:**
+CapyMate is an autonomous AI agent that rebalances a WETH/USDC portfolio based on real-time market sentiment. Every 5 minutes it runs a full decision cycle:
 
 ```
-┌─────────────────┐     POST /api/sense      ┌─────────────┐
-│   Host Agent    │  ←  portfolio + news     │  CapyMate   │
-│  (Claude, GPT)  │                        │   Harness   │
-└─────────────────┘                        └─────────────┘
-         │                                        │
-         │   Host agent runs its own LLM          │
-         │   to analyze sentiment & decide        │
-         │   target allocation                    │
-         │                                        │
-         ▼                                        ▼
-┌─────────────────┐     POST /api/decide     ┌─────────────┐
-│   Host Agent    │  →  LLMDecision JSON     │  CapyMate   │
-│  (Claude, GPT)  │                        │   Harness   │
-└─────────────────┘                        └─────────────┘
-                                                   │
-                                                   ▼
-                                          ┌─────────────────┐
-                                          │  1. VALIDATE    │
-                                          │  2. EXECUTE     │
-                                          │  3. LOG to 0G   │
-                                          └─────────────────┘
+SENSE  → fetch news + on-chain balances
+REASON → LLM analyzes sentiment → target allocation
+VALIDATE → 5 safety rules check the proposal
+EXECUTE → Uniswap quote → on-chain swap
+LOG → save state + reasoning to 0G Storage
 ```
 
-**Why this matters:**
-- **Zero API keys for the host agent** — it already has an LLM; CapyMate handles the crypto-specific work
-- **Safety by default** — 6 hardcoded rules prevent bad trades (whitelist, threshold, max trade, slippage, cooldown, daily limit)
-- **Persistent memory** — agent state survives restarts via 0G Storage
-- **Gasless execution option** — KeeperHub relay with automatic direct-RPC fallback
+**The agent's reasoning is transparent.** Every decision, every signal, every rationale is persisted to 0G — anyone can verify *why* a trade happened without exposing the signal prematurely.
 
----
+**Transactions are protected.** KeeperHub routes swaps through private infrastructure, shielding the agent from MEV, front-running, and gas spikes.
 
-## Installation
-
-### Prerequisites
-
-- Node.js ≥ 20
-- npm
-- A Base Sepolia wallet with testnet ETH
-
-### 1. Install
+## Live Demo
 
 ```bash
+# Run the agent with inline mocks
+npm install
+npm run demo
+
+# Or start the full pipeline
+DRY_RUN=true npm run dev
+```
+
+The demo runs bullish and bearish scenarios end-to-end in ~10 seconds.
+
+## How It Works
+
+### 6-Step Autonomous Cycle
+
+| Step | What Happens |
+|------|-------------|
+| **1. SENSE** | Fetches CryptoPanic headlines + reads WETH/USDC/ETH balances on-chain |
+| **2. REASON** | Sends top 5 headlines + prices to LLM → gets sentiment + target allocation |
+| **3. VALIDATE** | 5 safety rules enforce every trade before execution |
+| **4. EXECUTE** | Gets Uniswap quote → generates swap calldata → submits transaction |
+| **5. LOG** | Saves full state (decisions, history, reasoning) to 0G Storage |
+| **6. REPEAT** | Waits `POLLING_INTERVAL_MS` (default 5 min) and runs again |
+
+### Safety Rules (Hardcoded, Non-Negotiable)
+
+| Rule | Value | Why |
+|------|-------|-----|
+| Token Whitelist | WETH, USDC only | Prevents rug-pull tokens |
+| Min Rebalance | 2% | Ignores noise, avoids over-trading |
+| Max Trade | 10% of portfolio | Caps exposure per decision |
+| Slippage | 0.5% | Enforced by Uniswap router at execution |
+| Cooldown | 15 minutes | Prevents panic-driven rapid trades |
+| Daily Limit | 6 trades/day | Circuit breaker for unusual activity |
+
+All thresholds are in `src/config/constants.ts` — **not exposed via API**. They are intentional guardrails, not configuration options.
+
+### Two Modes
+
+**Autonomous Mode** — Set `LLM_API_KEY` and the agent runs itself. Full hands-off portfolio management.
+
+**Agent Plugin Mode** — Your AI (Claude, GPT-4, DeepSeek) calls `POST /api/sense` for market data, runs its own LLM to decide allocation, then calls `POST /api/decide` to execute through CapyMate's safety layer. Zero crypto-specific work for the host agent.
+
+## Why This Stack
+
+| Partner | What We Use | Why It Matters |
+|---------|------------|----------------|
+| **0G Storage** | Decentralized KV store for agent memory | Transparent, verifiable reasoning. Anyone can audit *why* the agent traded. Agent state survives restarts and can resume from any node. |
+| **KeeperHub** | Private transaction relay + direct RPC fallback | MEV protection, front-running resistance, gas spike immunity. Private routing keeps signals out of the public mempool. |
+| **Uniswap** | Trading API for quotes + swap calldata | Deep liquidity, battle-tested routing, server-side execution with no wallet UI needed. |
+| **OpenAgent** | LLM-powered autonomous decision cycle | Natural language reasoning → structured allocation decisions → on-chain execution. |
+
+## Quick Start
+
+```bash
+# 1. Install
 git clone <repo-url>
 cd capymate
 npm install
-```
 
-### 2. Configure
-
-```bash
+# 2. Configure
 cp .env.example .env
+# Edit .env with your Base Sepolia wallet + optional API keys
+
+# 3. Run demo (no API keys needed)
+npm run demo
+
+# 4. Start the agent
+npm run dev        # with auto-reload
+# or
+npm run build && npm start
 ```
 
-Edit `.env` with your credentials:
+The API server runs on `http://localhost:3000`. The React dashboard is in `/dashboard`.
 
-```env
-# Required
-PRIVATE_KEY=0x...                    # Base Sepolia wallet private key
-RPC_URL=https://sepolia.base.org     # Or your preferred RPC
-
-# Optional — for autonomous LLM mode
-LLM_API_KEY=sk-...                   # OpenAI, Groq, or compatible
-LLM_MODEL=gpt-4o-mini                # Or your preferred model
-LLM_BASE_URL=https://api.openai.com/v1  # Optional, for DeepSeek/Groq
-
-# Optional — service integrations (graceful degradation if missing)
-KEEPER_HUB_API_KEY=...               # Gasless relay via KeeperHub
-UNISWAP_API_KEY=...                  # Rate-limited without key
-CRYPTOPANIC_API_KEY=...              # Returns empty news if no key
-ZERO_G_API_KEY=...                   # Falls back to local JSON
-
-# Behavior
-DRY_RUN=false                        # Set to true to simulate trades
-POLLING_INTERVAL_MS=300000           # 5 minutes between cycles
-PORT=3000                            # REST API port
-```
-
-### 3. Run
+## API Endpoints
 
 ```bash
-# Development with auto-reload
-npm run dev
-
-# Production
-npm run build
-npm start
-```
-
-The API server starts on `http://localhost:3000`.
-
-### 4. Connect Your Agent
-
-**Step 1 — Get market data:**
-```bash
+# Get market data (for host agents)
 curl -X POST http://localhost:3000/api/sense
-# → { "portfolio": { "balances": [...], "total_value_usd": 1234.56 }, "news": [...] }
-```
 
-**Step 2 — Your agent analyzes sentiment and decides allocation.**
-
-**Step 3 — Execute the trade:**
-```bash
+# Execute a decision (for host agents)
 curl -X POST http://localhost:3000/api/decide \
   -H "Content-Type: application/json" \
   -d '{
     "sentiment": "bullish",
     "confidence": 0.85,
-    "reasoning": "ETH ETF approval signals strong upside",
+    "reasoning": "ETH ETF approval",
     "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
     "key_signals": ["SEC approves Ethereum ETF"]
   }'
-# → VALIDATE → EXECUTE → LOG results
+
+# Trigger full autonomous cycle
+curl -X POST http://localhost:3000/api/trigger
+
+# View agent state
+curl http://localhost:3000/api/state
 ```
 
----
+## Architecture
 
-## Autonomous Mode
-
-CapyMate can also run fully autonomously with its own LLM. It fetches news, analyzes sentiment, validates, and executes trades on a polling interval.
-
-Enable by setting `LLM_API_KEY` and leaving the API server running. The agent will auto-poll every `POLLING_INTERVAL_MS` (default: 5 minutes).
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Runtime | Node.js 20+, TypeScript 6 |
-| Blockchain | Base Sepolia (testnet) |
-| Wallet / RPC | ethers.js v6 |
-| Storage | 0G Storage HTTP API (indexer + Flow Contract) |
-| DEX | Uniswap V3 Trading API |
-| Execution | KeeperHub REST API + direct RPC fallback |
-| AI | OpenAI-compatible LLM (GPT-4, Claude, Groq, DeepSeek, etc.) |
-| News | CryptoPanic API |
-| API Server | Express + CORS |
-| Dashboard | React 18 + Vite + Tailwind CSS + Recharts |
-
----
+```
+┌─────────────────────────────────────────────┐
+│  SENSE → REMEMBER → REASON → VALIDATE       │
+│  → EXECUTE → LOG → (repeat)                 │
+│                                             │
+│  ┌─────────────┐  ┌─────────────┐          │
+│  │ CryptoPanic │  │   On-Chain  │          │
+│  │   News API  │  │   Balances  │          │
+│  └──────┬──────┘  └──────┬──────┘          │
+│         │                │                  │
+│         ▼                ▼                  │
+│  ┌─────────────────────────────────┐       │
+│  │  LLM Sentiment Analysis         │       │
+│  │  (OpenAI / Groq / DeepSeek)     │       │
+│  └─────────────────┬───────────────┘       │
+│                    │                        │
+│         ┌──────────┴──────────┐            │
+│         ▼                     ▼            │
+│  ┌──────────────┐    ┌──────────────┐     │
+│  │ 5 Safety     │    │ 0G Storage   │     │
+│  │ Rules        │    │ (Memory)     │     │
+│  └──────┬───────┘    └──────────────┘     │
+│         │                                  │
+│         ▼                                  │
+│  ┌─────────────────────────────────┐      │
+│  │  Uniswap V3  →  KeeperHub       │      │
+│  │  Quote       →  Private Relay   │      │
+│  │  + Swap      →  + Fallback RPC  │      │
+│  └─────────────────────────────────┘      │
+└─────────────────────────────────────────────┘
+```
 
 ## Project Structure
 
 ```
-├── src/
-│   ├── types/index.ts           # All TypeScript interfaces
-│   ├── config/constants.ts      # Safety limits, addresses, env config
-│   ├── services/
-│   │   ├── balanceService.ts    # On-chain WETH/USDC/ETH balance reads
-│   │   ├── 0gService.ts         # 0G Storage KV read/write
-│   │   ├── newsService.ts       # CryptoPanic API
-│   │   ├── llmService.ts        # OpenAI-compatible LLM + Zod validation
-│   │   ├── uniswapService.ts    # Quote fetching + swap calldata
-│   │   └── keeperService.ts     # Transaction submission
-│   ├── logic/
-│   │   ├── validator.ts         # 6 safety rules
-│   │   ├── portfolio.ts         # Allocation calculations
-│   │   └── engine.ts            # Main 6-step orchestration loop
-│   ├── api/
-│   │   ├── server.ts            # Express app factory
-│   │   └── routes.ts            # REST endpoints
-│   └── index.ts                 # Entry point
-├── dashboard/                   # React + Vite frontend
-│   └── src/
-│       ├── App.tsx
-│       ├── index.css
-│       └── components/
-│           ├── StatusCard.tsx
-│           ├── AllocationChart.tsx
-│           └── TradeHistory.tsx
-├── developer_test/              # Tests, demos, mocks
-│   ├── tests/
-│   └── scripts/
-├── blockchain_test/             # Hardhat + Solidity (isolated deps)
-│   ├── contracts/
-│   │   └── MockPortfolioTracker.sol
-│   ├── scripts/
-│   └── test/
-├── DEV/                         # Public documentation
-│   ├── CONTEXT.md               # Architecture guide
-│   └── DEV.md                   # Testing guide
-├── .env.example
-├── package.json
-├── tsconfig.json
-└── README.md
+src/
+  logic/
+    engine.ts         ← 6-step orchestration loop
+    validator.ts      ← 5 safety rules
+    portfolio.ts      ← Allocation math
+  services/
+    balanceService.ts ← On-chain reads (ethers.js)
+    newsService.ts    ← CryptoPanic API
+    llmService.ts     ← OpenAI-compatible + Zod validation
+    uniswapService.ts ← Trading API (quote + calldata)
+    keeperService.ts  ← Private relay + direct RPC fallback
+    0gService.ts      ← Decentralized agent memory
+dashboard/            ← React + Vite + Tailwind + Recharts
+blockchain_test/      ← Hardhat + MockPortfolioTracker.sol
+developer_test/       ← Smoke tests + demo scripts
 ```
-
----
-
-## API Reference
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| GET | `/api/status` | Agent status: `isRunning`, `cycleCount`, `dailyTradeCount` |
-| GET | `/api/state` | Full agent state: `last_decision`, `portfolio_history`, `cycle_count`, `current_allocation` |
-| POST | `/api/trigger` | Manually trigger one full SENSE→REASON→VALIDATE→EXECUTE→LOG cycle |
-| POST | `/api/sense` | Run SENSE step only — returns portfolio + news (for host agents) |
-| POST | `/api/decide` | Accept an LLM decision and run VALIDATE→EXECUTE→LOG (for host agents) |
-
----
-
-## Safety Constraints
-
-The validator enforces 6 hard rules before any trade executes:
-
-| Rule | Value | Description |
-|------|-------|-------------|
-| Allowed Tokens | WETH, USDC | Rejects any non-whitelisted token |
-| Min Rebalance Threshold | 2% | Ignores tiny allocation shifts |
-| Max Single Trade | 10% | Caps any single trade at 10% of portfolio |
-| Max Slippage | 0.5% | Enforced via Uniswap slippage tolerance |
-| Cooldown | 15 min | Prevents rapid successive trades |
-| Max Daily Trades | 6 | Circuit breaker for daily activity |
-
-All thresholds are hardcoded in `src/config/constants.ts` and are **not** exposed via API — they are intentional guardrails.
-
----
 
 ## Testing
 
-### Type Check
-
 ```bash
-npm run typecheck
-# Expected: 0 errors
+npm run typecheck    # 0 TypeScript errors
+npm run demo         # Full integration demo (bullish + bearish)
 ```
 
-### Run the Demo
+## Prize Tracks
 
-```bash
-npm run demo
-```
+| Track | Integration | Evidence |
+|-------|------------|----------|
+| **0G Storage** | Agent state + reasoning saved to 0G indexer | `src/services/0gService.ts` |
+| **KeeperHub** | Private tx relay with direct RPC fallback | `src/services/keeperService.ts` |
+| **Uniswap** | Quotes + swap calldata via Trading API | `src/services/uniswapService.ts` |
+| **OpenAgent** | Autonomous LLM-driven rebalancing cycle | `src/logic/engine.ts` |
 
-The demo uses inline mock implementations to verify:
-- All 6 services instantiate correctly
-- The engine runs a full cycle
-- Bullish/bearish sentiment routing works
-- Validation rules are applied
-- Memory persists across cycles
+## License
 
-### Manual API Testing
-
-```bash
-# Start server with DRY_RUN for safe testing
-DRY_RUN=true npx tsx src/index.ts
-
-# In another terminal:
-curl http://localhost:3000/api/health
-curl -X POST http://localhost:3000/api/sense
-curl -X POST http://localhost:3000/api/decide \
-  -H "Content-Type: application/json" \
-  -d '{"sentiment":"bullish","confidence":0.85,"reasoning":"ETH ETF","target_allocation":{"WETH":0.8,"USDC":0.2},"key_signals":["ETF"]}'
-```
-
-### Dashboard Build
-
-```bash
-cd dashboard
-npm install
-npm run build
-# Expected: "dist/" folder created with no errors
-```
-
----
-
-## Configuration Reference
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CHAIN_ID` | `84532` | Base Sepolia |
-| `RPC_URL` | `https://sepolia.base.org` | JSON-RPC endpoint |
-| `PRIVATE_KEY` | — | Wallet private key (testnet only!) |
-| `LLM_API_KEY` | — | OpenAI-compatible API key |
-| `LLM_MODEL` | `gpt-4o-mini` | Model identifier |
-| `LLM_BASE_URL` | `https://api.openai.com/v1` | API base URL (for DeepSeek/Groq) |
-| `CRYPTOPANIC_API_KEY` | — | CryptoPanic API token |
-| `KEEPER_HUB_API_KEY` | — | KeeperHub relay API key |
-| `UNISWAP_API_KEY` | — | Uniswap Trading API key |
-| `ZERO_G_ENDPOINT` | `https://indexer-storage-testnet-turbo.0g.ai` | 0G indexer URL |
-| `ZERO_G_API_KEY` | — | 0G Storage API key |
-| `POLLING_INTERVAL_MS` | `300000` | Auto-poll interval (5 min) |
-| `PORT` | `3000` | Express API port |
-| `DRY_RUN` | `false` | If `true`, simulates trades without broadcasting |
+ISC
