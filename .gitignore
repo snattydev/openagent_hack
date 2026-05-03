@@ -32,3 +32,6 @@ Thumbs.db
 # Test artifacts
 test-results/
 playwright-report/
+
+# Personal notes (not for public distribution)
+.personal/

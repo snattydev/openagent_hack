@@ -75,18 +75,21 @@ This means **zero API keys required** — the host agent's existing LLM handles 
 │           ├── StatusCard.tsx
 │           ├── AllocationChart.tsx
 │           └── TradeHistory.tsx
-├── scripts/
-│   └── demo.ts                  # Hackathon demo (bullish + bearish)
 ├── developer_test/              # Tests, mocks, demo scripts
-│   ├── test-validator.ts
-│   ├── test-engine.ts
-│   ├── test-llm-mock.ts
-│   └── ...
+│   ├── tests/
+│   └── scripts/
+├── blockchain_test/             # Hardhat + Solidity (isolated deps)
+│   ├── contracts/
+│   ├── scripts/
+│   └── test/
+├── dashboard/                   # React + Vite frontend
+├── DEV/                         # Public documentation
+│   ├── CONTEXT.md               # Architecture guide & gotchas
+│   └── RESULTS.md               # Test report & submission guide
 ├── .env.example
 ├── package.json
 ├── tsconfig.json
-├── README.md
-└── context.md
+└── README.md
 ```
 
 ---

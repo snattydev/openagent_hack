@@ -5,6 +5,17 @@
 
 ---
 
+## 📚 Documentation
+
+| File | Audience | Purpose |
+|------|----------|---------|
+| `README.md` | Everyone | Quick start, API docs, demo checklist |
+| `DEV/CONTEXT.md` | Developers | Architecture, gotchas, testing guide |
+| `DEV/RESULTS.md` | Judges / Reviewers | Test report, prize analysis, submission guide |
+| `AGENTS.md` | AI Agents | Context for assistants working on the codebase |
+
+---
+
 ## 🎯 PROJECT OVERVIEW
 
 An AI agent that autonomously rebalances a crypto portfolio (WETH/USDC) based on real-time market sentiment analysis. Built for the ETHGlobal OpenAgent Hackathon.
