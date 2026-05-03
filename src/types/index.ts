@@ -106,6 +106,7 @@ export interface ServiceConfig {
   zeroGEndpoint: string;
   zeroGApiKey: string;
   keeperHubApiKey: string;
+  uniswapApiKey: string;
   llmApiKey: string;
   llmModel: string;
   llmBaseUrl: string;

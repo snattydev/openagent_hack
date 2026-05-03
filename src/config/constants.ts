@@ -84,6 +84,7 @@ export function getConfig(): ServiceConfig {
     zeroGEndpoint: process.env.ZERO_G_ENDPOINT ?? 'https://indexer-storage-testnet-turbo.0g.ai',
     zeroGApiKey: process.env.ZERO_G_API_KEY ?? '',
     keeperHubApiKey: process.env.KEEPER_HUB_API_KEY ?? '',
+    uniswapApiKey: process.env.UNISWAP_API_KEY ?? '',
     llmApiKey: process.env.LLM_API_KEY ?? '',
     llmModel: process.env.LLM_MODEL ?? 'gpt-4o-mini',
     llmBaseUrl: process.env.LLM_BASE_URL ?? 'https://api.openai.com/v1',

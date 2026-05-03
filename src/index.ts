@@ -43,6 +43,7 @@ export async function main(): Promise<http.Server> {
   });
 
   const uniswapService = new UniswapService({
+    apiKey: config.uniswapApiKey,
     chainId: config.chainId,
     mock: config.useMockServices,
   });
