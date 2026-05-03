@@ -45,7 +45,24 @@ function formatUsd(value: number): string {
 
 function formatTimestamp(ts: number | undefined): string {
   if (typeof ts !== 'number') return '—';
-  return new Date(ts).toLocaleString();
+  const date = new Date(ts);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.round(diffMs / 60000);
+
+  if (diffMins < 1) return 'just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const time = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const isToday = date.toDateString() === now.toDateString();
+  if (isToday) return time;
+
+  const day = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${day}, ${time}`;
 }
 
 export default function TradeHistory({ state }: Props) {

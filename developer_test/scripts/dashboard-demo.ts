@@ -7,23 +7,38 @@ import { createApp } from '../../src/api/server.js';
 let cycleIndex = 0;
 
 class VaryingBalanceService {
+  private allocations = [
+    { weth: 0.50, usdc: 0.50, value: 6000 },
+    { weth: 0.58, usdc: 0.42, value: 6150 },
+    { weth: 0.58, usdc: 0.42, value: 5920 },
+    { weth: 0.65, usdc: 0.35, value: 6380 },
+    { weth: 0.42, usdc: 0.58, value: 6050 },
+    { weth: 0.48, usdc: 0.52, value: 6200 },
+    { weth: 0.55, usdc: 0.45, value: 5750 },
+    { weth: 0.62, usdc: 0.38, value: 6400 },
+    { weth: 0.38, usdc: 0.62, value: 5980 },
+    { weth: 0.52, usdc: 0.48, value: 6250 },
+  ];
+
   async getWalletBalances(): Promise<PortfolioState> {
-    const variations = [5800, 6150, 5920, 6380, 6050];
-    const baseValue = variations[cycleIndex % variations.length];
-    const wethAmount = baseValue * 0.5 / 2000;
-    const usdcAmount = baseValue * 0.5;
+    const preset = this.allocations[cycleIndex % this.allocations.length];
+    const wethValue = preset.value * preset.weth;
+    const usdcValue = preset.value * preset.usdc;
+    const wethAmount = wethValue / 2000;
 
     return {
       balances: [
         { token: 'WETH', amount: wethAmount, decimals: 18, price_usd: 2000 },
-        { token: 'USDC', amount: usdcAmount, decimals: 6, price_usd: 1 },
+        { token: 'USDC', amount: usdcValue, decimals: 6, price_usd: 1 },
       ],
-      total_value_usd: baseValue,
-      current_allocation: { WETH: 0.5, USDC: 0.5 },
+      total_value_usd: preset.value,
+      current_allocation: { WETH: preset.weth, USDC: preset.usdc },
       target_allocation: { WETH: 0.5, USDC: 0.5 },
       timestamp: Date.now(),
     };
   }
+
+  updateAllocation(_targetWethPercent: number) {}
 }
 
 class Demo0GService {
@@ -142,7 +157,7 @@ async function main() {
     config,
   });
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 8; i++) {
     cycleIndex = i;
     console.log(`\n--- Cycle ${i + 1} ---`);
     const results = await engine.runCycle();
@@ -151,12 +166,17 @@ async function main() {
     const validation = results.find((r) => r.step === CycleStep.VALIDATE && r.success)?.data;
     const execute = results.find((r) => r.step === CycleStep.EXECUTE && r.success)?.data;
 
+    if (execute?.txHash && decision?.target_allocation?.WETH) {
+      balanceService.updateAllocation(decision.target_allocation.WETH);
+    }
+
     console.log(`  Portfolio: $${engine.state.portfolio_history.at(-1)?.total_value_usd}`);
+    console.log(`  Allocation: WETH ${(engine.state.portfolio_history.at(-1)?.current_allocation.WETH * 100).toFixed(0)}% / USDC ${(engine.state.portfolio_history.at(-1)?.current_allocation.USDC * 100).toFixed(0)}%`);
     console.log(`  Sentiment: ${decision?.sentiment} (${decision?.confidence})`);
     console.log(`  Valid: ${validation?.valid}`);
     console.log(`  TX: ${execute?.txHash ? execute.txHash.slice(0, 20) + '...' : 'skipped'}`);
 
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1500));
   }
 
   console.log('\n--- Starting API server for dashboard ---');

@@ -143,14 +143,15 @@ export default function AllocationChart({ state }: Props) {
   const hasHistory = parsed.portfolio_history.length > 0;
 
   const historyData = parsed.portfolio_history.map((item) => {
-    const date = new Date(item.timestamp);
+    const tsNum = Number(item.timestamp);
+    const date = new Date(tsNum);
     const time = Number.isNaN(date.getTime())
-      ? item.timestamp
-      : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      ? String(item.timestamp)
+      : date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     return {
       time,
-      WETH: item.current_allocation.WETH * 100,
-      USDC: item.current_allocation.USDC * 100,
+      WETH: Math.round(item.current_allocation.WETH * 100),
+      USDC: Math.round(item.current_allocation.USDC * 100),
     };
   });
 
