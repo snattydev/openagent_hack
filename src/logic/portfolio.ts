@@ -54,16 +54,19 @@ export function calculateTradeAmounts(
   current: PortfolioState,
   proposed: LLMDecision,
 ): { from_token: string; to_token: string; amount_usd: number } | null {
-  const diff =
-    Math.abs(
-      current.current_allocation.WETH - proposed.target_allocation.WETH,
-    );
+  const wethDiff = Math.abs(
+    current.current_allocation.WETH - proposed.target_allocation.WETH,
+  );
+  const usdcDiff = Math.abs(
+    current.current_allocation.USDC - proposed.target_allocation.USDC,
+  );
 
-  if (diff < 1e-10) {
+  const hasMeaningfulChange = wethDiff >= 1e-10 || usdcDiff >= 1e-10;
+  if (!hasMeaningfulChange) {
     return null;
   }
 
-  const amountUsd = diff * current.total_value_usd;
+  const amountUsd = wethDiff * current.total_value_usd;
 
   if (current.current_allocation.WETH > proposed.target_allocation.WETH) {
     return {

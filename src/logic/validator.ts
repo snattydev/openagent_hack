@@ -79,11 +79,18 @@ function checkMaxTrade(
 
 /**
  * **Rule 4 — Max slippage**
- * Slippage is checked at quote-time by uniswapService, not here.
- * Always returns valid — the actual enforcement happens when the TradeOrder
- * is created.
+ * Actual slippage can only be known after fetching a quote from the DEX.
+ * We set the slippage tolerance on the Uniswap swap request
+ * (SAFETY_CONFIG.MAX_SLIPPAGE) and the Uniswap router enforces it at
+ * execution time. Pre-quote validation is not possible because we do not
+ * have the expected output amount until the quote is fetched.
+ *
+ * Production improvement: after receiving the quote, calculate implied
+ * slippage against a reference price (e.g. CoinGecko) and reject the trade
+ * if it exceeds MAX_SLIPPAGE before signing.
  */
 function checkSlippage(): ValidationResult | null {
+  // Intentionally a no-op at validation time — enforced by Uniswap router.
   return null;
 }
 

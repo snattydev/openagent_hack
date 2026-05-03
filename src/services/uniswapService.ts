@@ -113,7 +113,7 @@ export class UniswapService {
   async getSwapCalldata(
     tradeOrder: TradeOrder,
     recipient: string,
-  ): Promise<{ to: string; data: string; value: string } | null> {
+  ): Promise<{ to: string; data: string; value: string; gasLimit?: string } | null> {
     try {
       if (!tradeOrder.route_data) {
         console.error('[UniswapService] No route data in trade order');
@@ -151,6 +151,7 @@ export class UniswapService {
         to: data.to,
         data: data.data,
         value: data.value ?? '0',
+        gasLimit: data.gasLimit,
       };
     } catch (err) {
       console.error('[UniswapService] getSwapCalldata error:', err);

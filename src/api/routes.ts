@@ -9,6 +9,8 @@ const decideSchema = z.object({
   target_allocation: z.object({
     WETH: z.number().min(0).max(1),
     USDC: z.number().min(0).max(1),
+  }).refine((a) => Math.abs(a.WETH + a.USDC - 1) <= 0.01, {
+    message: 'WETH + USDC must sum to approximately 1.0 (within 1%)',
   }),
   key_signals: z.array(z.string()).max(20),
 });

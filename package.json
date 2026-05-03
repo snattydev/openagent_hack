@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "demo": "USE_MOCK_SERVICES=true npx tsx developer_test/scripts/demo.ts",
+    "demo": "npx tsx developer_test/scripts/demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],
@@ -19,13 +19,13 @@
     "dotenv": "^17.4.2",
     "ethers": "^6.16.0",
     "express": "^5.2.1",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
   }
 }

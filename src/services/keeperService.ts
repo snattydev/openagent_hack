@@ -28,8 +28,9 @@ export class KeeperService {
     to: string;
     data: string;
     value: string;
+    gasLimit?: string;
   }): Promise<string> {
-    const { to, data, value } = calldata;
+    const { to, data, value, gasLimit } = calldata;
 
     if (this.dryRun) {
       console.log(
@@ -71,6 +72,10 @@ export class KeeperService {
         chainId: this.chainId,
       };
 
+      if (gasLimit) {
+        tx.gasLimit = BigInt(gasLimit);
+      }
+
       const feeData = await provider.getFeeData();
       if (feeData.maxFeePerGas != null) {
         tx.maxFeePerGas = feeData.maxFeePerGas;
@@ -101,6 +106,7 @@ export class KeeperService {
     to: string;
     data: string;
     value: string;
+    gasLimit?: string;
   }): Promise<string> {
     const response = await fetch('https://api.keeperhub.io/v1/transactions', {
       method: 'POST',

@@ -48,6 +48,7 @@ export class Engine {
   private lastCycle = 0;
   private dailyTradeCount = 0;
   private lastTradeTime = 0;
+  private cachedWalletAddress: string | null = null;
 
   state: AgentState = {
     last_decision: null,
@@ -332,122 +333,144 @@ export class Engine {
    * Returns the full cycle results for those steps.
    */
   async decide(decision: LLMDecision): Promise<CycleResult[]> {
+    if (this.isRunning) {
+      console.log('Cycle already running, skipping decide()');
+      return [];
+    }
+
+    this.isRunning = true;
     const results: CycleResult[] = [];
 
-    this.state.last_decision = decision;
-    this.state.reasoning = decision.reasoning;
-
-    let currentPortfolio = this.state.portfolio_history.at(-1) ?? null;
-    if (!currentPortfolio) {
-      const walletAddress = this.getWalletAddress();
-      currentPortfolio = await this.balanceService.getWalletBalances(walletAddress);
-    }
-
-    // ── VALIDATE ──────────────────────────────────────────────────────
-    let validationResult: { valid: boolean; reason?: string } | null = null;
     try {
-      validationResult = validateRebalance(
-        currentPortfolio,
-        decision,
-        this.dailyTradeCount,
-        this.lastTradeTime,
-      );
-      results.push({
-        step: CycleStep.VALIDATE,
-        timestamp: Date.now(),
-        data: validationResult,
-        success: true,
-      });
-    } catch (err) {
-      console.error('[Engine] VALIDATE error:', errMsg(err));
-      results.push({
-        step: CycleStep.VALIDATE,
-        timestamp: Date.now(),
-        data: null,
-        success: false,
-        error: errMsg(err),
-      });
-    }
+      this.state.last_decision = decision;
+      this.state.reasoning = decision.reasoning;
 
-    // ── EXECUTE ───────────────────────────────────────────────────────
-    try {
-      if (validationResult?.valid && currentPortfolio) {
-        const portfolio = currentPortfolio;
-        const tradeResult = await this.executeTrade(portfolio, decision);
-        if (tradeResult) {
-          results.push({
-            step: CycleStep.EXECUTE,
-            timestamp: Date.now(),
-            data: tradeResult,
-            success: true,
-          });
+      let currentPortfolio: PortfolioState;
+      try {
+        const walletAddress = this.getWalletAddress();
+        currentPortfolio = await this.balanceService.getWalletBalances(walletAddress);
+        currentPortfolio.timestamp = Date.now();
+        this.state.portfolio_history.push(currentPortfolio);
+      } catch (err) {
+        console.error('[Engine] decide() balance fetch error:', errMsg(err));
+        const fallback = this.state.portfolio_history.at(-1);
+        if (!fallback) {
+          throw new Error('No portfolio data available for validation');
+        }
+        currentPortfolio = fallback;
+      }
+
+      // ── VALIDATE ──────────────────────────────────────────────────────
+      let validationResult: { valid: boolean; reason?: string } | null = null;
+      try {
+        validationResult = validateRebalance(
+          currentPortfolio,
+          decision,
+          this.dailyTradeCount,
+          this.lastTradeTime,
+        );
+        results.push({
+          step: CycleStep.VALIDATE,
+          timestamp: Date.now(),
+          data: validationResult,
+          success: true,
+        });
+      } catch (err) {
+        console.error('[Engine] VALIDATE error:', errMsg(err));
+        results.push({
+          step: CycleStep.VALIDATE,
+          timestamp: Date.now(),
+          data: null,
+          success: false,
+          error: errMsg(err),
+        });
+      }
+
+      // ── EXECUTE ───────────────────────────────────────────────────────
+      try {
+        if (validationResult?.valid) {
+          const tradeResult = await this.executeTrade(currentPortfolio, decision);
+          if (tradeResult) {
+            results.push({
+              step: CycleStep.EXECUTE,
+              timestamp: Date.now(),
+              data: tradeResult,
+              success: true,
+            });
+          } else {
+            results.push({
+              step: CycleStep.EXECUTE,
+              timestamp: Date.now(),
+              data: { skipped: true, reason: 'No rebalance needed' },
+              success: true,
+            });
+          }
         } else {
           results.push({
             step: CycleStep.EXECUTE,
             timestamp: Date.now(),
-            data: { skipped: true, reason: 'No rebalance needed' },
+            data: {
+              skipped: true,
+              reason: validationResult != null ? 'Validation did not pass' : 'No validation result',
+            },
             success: true,
           });
         }
-      } else {
+      } catch (err) {
+        console.error('[Engine] EXECUTE error:', errMsg(err));
         results.push({
           step: CycleStep.EXECUTE,
           timestamp: Date.now(),
-          data: {
-            skipped: true,
-            reason: validationResult != null ? 'Validation did not pass' : 'No validation result',
-          },
-          success: true,
+          data: null,
+          success: false,
+          error: errMsg(err),
         });
       }
-    } catch (err) {
-      console.error('[Engine] EXECUTE error:', errMsg(err));
-      results.push({
-        step: CycleStep.EXECUTE,
-        timestamp: Date.now(),
-        data: null,
-        success: false,
-        error: errMsg(err),
-      });
-    }
 
-    // ── LOG ───────────────────────────────────────────────────────────
-    try {
-      this.state.cycle_count += 1;
-      this.state.timestamp = Date.now();
+      // ── LOG ───────────────────────────────────────────────────────────
+      try {
+        this.state.cycle_count += 1;
+        this.state.timestamp = Date.now();
 
-      if (this.state.portfolio_history.length > STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES) {
-        this.state.portfolio_history = this.state.portfolio_history.slice(
-          -STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES,
-        );
+        if (this.state.portfolio_history.length > STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES) {
+          this.state.portfolio_history = this.state.portfolio_history.slice(
+            -STORAGE_CONFIG.MAX_PERSISTED_HISTORY_ENTRIES,
+          );
+        }
+
+        await this.zeroGService.saveState(AGENT_ID, this.state);
+        results.push({
+          step: CycleStep.LOG,
+          timestamp: Date.now(),
+          data: this.state,
+          success: true,
+        });
+      } catch (err) {
+        console.error('[Engine] LOG error:', errMsg(err));
+        results.push({
+          step: CycleStep.LOG,
+          timestamp: Date.now(),
+          data: null,
+          success: false,
+          error: errMsg(err),
+        });
       }
-
-      await this.zeroGService.saveState(AGENT_ID, this.state);
-      results.push({
-        step: CycleStep.LOG,
-        timestamp: Date.now(),
-        data: this.state,
-        success: true,
-      });
-    } catch (err) {
-      console.error('[Engine] LOG error:', errMsg(err));
-      results.push({
-        step: CycleStep.LOG,
-        timestamp: Date.now(),
-        data: null,
-        success: false,
-        error: errMsg(err),
-      });
+    } finally {
+      this.isRunning = false;
     }
 
     return results;
   }
 
   private getWalletAddress(): string {
+    if (this.cachedWalletAddress) {
+      return this.cachedWalletAddress;
+    }
     if (!this.config.privateKey) {
       throw new Error('PRIVATE_KEY is required');
     }
-    return new Wallet(this.config.privateKey).address;
+    this.cachedWalletAddress = new Wallet(this.config.privateKey).address;
+    return this.cachedWalletAddress;
   }
 
   private getDefaultPortfolio(): PortfolioState {
@@ -503,13 +526,15 @@ export class Engine {
       }
     }
 
-    const now = Date.now();
-    const oneDay = 24 * 60 * 60 * 1000;
-    if (now - this.lastTradeTime > oneDay) {
-      this.dailyTradeCount = 0;
+    if (txHash) {
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      if (now - this.lastTradeTime > oneDay) {
+        this.dailyTradeCount = 0;
+      }
+      this.dailyTradeCount += 1;
+      this.lastTradeTime = now;
     }
-    this.dailyTradeCount += 1;
-    this.lastTradeTime = now;
 
     return { quote, txHash };
   }
