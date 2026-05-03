@@ -36,6 +36,7 @@ playwright-report/
 # Personal notes (not for public distribution)
 .personal/
 judging.md
+DEV/
 
 # Rollback backups
 .rollback/
