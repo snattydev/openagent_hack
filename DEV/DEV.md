@@ -6,6 +6,8 @@
 
 ## Architecture Overview
 
+### Mode A: Autonomous Agent (Full Loop)
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           CAPYMATE AGENT STACK                               │
@@ -20,6 +22,7 @@
 │  │                      API SERVER (Express :3000)                        │   │
 │  │   GET  /api/health     ·     GET  /api/status                         │   │
 │  │   GET  /api/state      ·     POST /api/trigger                        │   │
+│  │   POST /api/sense      ·     POST /api/decide   ← NEW: Agent Plugin   │   │
 │  └─────────────────────────────────┬────────────────────────────────────┘   │
 │                                    │                                         │
 │  ┌─────────────────────────────────▼────────────────────────────────────┐   │
@@ -69,6 +72,36 @@
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Mode B: Agent Plugin (Host Agent Provides Reasoning)
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         AGENT PLUGIN MODE                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   ┌──────────────────┐          ┌──────────────────────────────────────┐   │
+│   │   HOST AGENT     │          │           CAPYMATE PLUGIN            │   │
+│   │  (Any AI agent)  │          │         (This codebase)              │   │
+│   │                  │          │                                      │   │
+│   │  • Claude Code   │          │  ┌────────────────────────────────┐  │   │
+│   │  • OpenCode      │──HTTP───→│  │ POST /api/sense               │  │   │
+│   │  • Cursor        │          │  │ → returns portfolio + news    │  │   │
+│   │  • GPT-4o        │          │  └────────────────────────────────┘  │   │
+│   │                  │          │                                      │   │
+│   │  Runs its own    │          │  ┌────────────────────────────────┐  │   │
+│   │  LLM to decide   │←──HTTP───│  │ POST /api/decide              │  │   │
+│   │  allocation      │          │  │ ← accepts LLMDecision JSON    │  │   │
+│   │                  │          │  │ → runs VALIDATE→EXECUTE→LOG   │  │   │
+│   └──────────────────┘          │  └────────────────────────────────┘  │   │
+│                                 │                                      │   │
+│                                 │  ✓ No LLM API key needed             │   │
+│                                 │  ✓ No 0G API key needed (fallback)   │   │
+│                                 │  ✓ No KeeperHub key (RPC fallback)   │   │
+│                                 │  ✓ Host agent's LLM handles reasoning│   │
+│                                 └──────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## How the Agent Works
@@ -87,22 +120,57 @@ in try/catch — a failure in one step never crashes the agent; it logs and cont
 | **5. EXECUTE** | Get Uniswap quote + calldata, submit via KeeperHub | `uniswapService` + `keeperService` | Produces transaction hash |
 | **6. LOG** | Persist updated state to 0G Storage | `0gService.saveState()` | Prunes `portfolio_history` to 20 entries max (gas optimization), then writes `AgentState` |
 
-### Running the Agent
+### Two Operating Modes
 
-**Mock mode** (no API keys, no chain):
+**Mode A: Autonomous Agent** (full 6-step loop)
+
+The agent runs everything itself — fetches news, calls LLM, validates, executes, persists.
+
 ```bash
+# Mock mode (no API keys)
 USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+
+# Real mode (requires keys in .env)
+USE_MOCK_SERVICES=false DRY_RUN=false npx tsx src/index.ts
 ```
-The server starts on port 3000. In mock mode, cycles are triggered manually:
+
+In real mode, the agent auto-polls every `POLLING_INTERVAL_MS`. In mock mode, trigger manually:
 ```bash
 curl -X POST http://localhost:3000/api/trigger
 ```
 
-**Real mode** (requires keys in `.env`):
+**Mode B: Agent Plugin** (host agent provides reasoning)
+
+The host AI agent (Claude Code, OpenCode, etc.) handles the LLM reasoning. CapyMate handles validation, execution, and memory.
+
 ```bash
-npx tsx src/index.ts
+# Start CapyMate (no LLM key needed!)
+USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+
+# 1. Host agent gets market data
+curl -X POST http://localhost:3000/api/sense
+# → { "portfolio": {...}, "news": [...] }
+
+# 2. Host agent runs its own LLM, decides allocation
+
+# 3. Host agent injects decision
+curl -X POST http://localhost:3000/api/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sentiment": "bullish",
+    "confidence": 0.85,
+    "reasoning": "ETH ETF approval signals strong upside",
+    "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
+    "key_signals": ["SEC approves Ethereum ETF"]
+  }'
+# → CapyMate runs VALIDATE → EXECUTE → LOG
 ```
-In real mode, the agent polls automatically every `POLLING_INTERVAL_MS` (default: 5 minutes).
+
+**Why Plugin Mode Matters:**
+- **Zero API keys** for the plugin user — their existing agent already has LLM access
+- **Any LLM** — host agent can use Claude, GPT-4, DeepSeek, Groq, local models
+- **Composable** — one CapyMate instance can serve multiple host agents
+- **Hackathon-friendly** — judges can install and test without provisioning 4+ API keys
 
 ### Concurrency Guard
 
@@ -405,6 +473,143 @@ on 0G's decentralized file system.
 
 ---
 
+## Comprehensive Testing Guide
+
+### Quick Verification (30 seconds)
+
+```bash
+# 1. TypeScript compilation
+npm run typecheck
+# Expected: 0 errors
+
+# 2. Run demo
+npm run demo
+# Expected: bullish + bearish scenarios, memory persistence
+```
+
+### Backend Smoke Tests
+
+All tests run in mock mode — no API keys needed.
+
+```bash
+# Engine tests (13 assertions)
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-engine.ts
+
+# Validator tests (8 assertions — all 6 safety rules)
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-validator.ts
+
+# LLM mock tests (13 assertions — keyword detection, caching)
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-mock.ts
+
+# Zod validation tests (6 assertions — fallback behavior)
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-zod.ts
+
+# News service smoke test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-news.ts
+
+# 0G storage round-trip test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-0g.ts
+
+# API server smoke test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-api.ts
+
+# KeeperHub dry-run test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-dryrun.ts
+
+# KeeperHub mock test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-mock.ts
+
+# Uniswap quote + calldata test
+USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-uniswap.ts
+```
+
+### Agent Plugin Mode Tests
+
+```bash
+# 1. Start the server
+USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts &
+SERVER_PID=$!
+sleep 2
+
+# 2. Test SENSE endpoint
+curl -s http://localhost:3000/api/sense | jq .
+# Expected: { portfolio: { balances, total_value_usd, ... }, news: [...] }
+
+# 3. Test DECIDE endpoint
+curl -s -X POST http://localhost:3000/api/decide \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sentiment": "bullish",
+    "confidence": 0.85,
+    "reasoning": "ETH ETF approval",
+    "target_allocation": { "WETH": 0.8, "USDC": 0.2 },
+    "key_signals": ["SEC approves ETF"]
+  }' | jq '.[] | { step: .step, success }'
+# Expected: VALIDATE success, EXECUTE success, LOG success
+
+# 4. Check state persisted
+curl -s http://localhost:3000/api/state | jq '.cycle_count'
+# Expected: >= 1
+
+kill $SERVER_PID
+```
+
+### Hardhat Blockchain Tests
+
+```bash
+cd blockchain_test
+npm install
+
+# Compile contracts
+npx hardhat compile
+
+# Run contract tests
+npx hardhat test
+
+# Start local node (terminal 1)
+npx hardhat node
+
+# Deploy contracts (terminal 2)
+npx hardhat run scripts/deploy.ts --network localhost
+```
+
+### Dashboard Tests
+
+```bash
+cd dashboard
+npm install
+
+# Build check
+npm run build
+
+# E2E tests (requires backend running)
+npx playwright test
+```
+
+### Real Integration Tests (Requires API Keys)
+
+```bash
+# Test with real Uniswap API (requires UNISWAP_API_KEY)
+UNISWAP_API_KEY=your-key USE_MOCK_SERVICES=false npx tsx developer_test/tests/test-uniswap.ts
+
+# Test with real 0G (requires ZERO_G_API_KEY)
+ZERO_G_API_KEY=your-key USE_MOCK_SERVICES=false npx tsx developer_test/tests/test-0g.ts
+
+# Test with real LLM (requires LLM_API_KEY)
+LLM_API_KEY=sk-... USE_MOCK_SERVICES=false npx tsx developer_test/tests/test-llm-mock.ts
+```
+
+### Load / Stress Test
+
+```bash
+# Rapid-fire trigger requests (concurrency guard should prevent overlaps)
+for i in {1..5}; do
+  curl -s -X POST http://localhost:3000/api/trigger &
+done
+wait
+# Expected: Only 1 cycle runs, others return empty with "Cycle already running"
+```
+
 ## Development Commands
 
 ```bash
@@ -424,13 +629,18 @@ cd dashboard && npm run dev
 cd dashboard && npm run build
 
 # Hardhat local blockchain
-npm run node              # Start local node
-npm run compile           # Compile Solidity contracts
-npm run test:contracts    # Run contract tests
-npm run deploy:local      # Deploy to localhost
+cd blockchain_test
+npx hardhat node              # Start local node
+npx hardhat compile           # Compile Solidity contracts
+npx hardhat test              # Run contract tests
+npx hardhat run scripts/deploy.ts --network localhost  # Deploy
 
 # Test API manually
 curl http://localhost:3000/api/health
 curl -X POST http://localhost:3000/api/trigger
 curl http://localhost:3000/api/state
+
+# Agent plugin mode
+curl -X POST http://localhost:3000/api/sense
+curl -X POST http://localhost:3000/api/decide -H "Content-Type: application/json" -d '{...}'
 ```

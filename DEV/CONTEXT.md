@@ -1,7 +1,7 @@
 # CAPYMATE: Autonomous Sentiment-Based Portfolio Rebalancer
 
-**Last Updated:** 2026-05-02 (post-audit)  
-**Status:** MVP-ready scaffold. Core integrations pending (0G, Uniswap, KeeperHub).
+**Last Updated:** 2026-05-03 (integrations complete)  
+**Status:** MVP-ready. All core integrations implemented with graceful fallbacks.
 
 ---
 
@@ -24,9 +24,10 @@ An AI agent that autonomously rebalances a crypto portfolio (WETH/USDC) based on
 | Runtime | Node.js 20+ / TypeScript 6 | ✅ Working |
 | Chain | Base Sepolia (testnet) | ✅ Configured |
 | Wallet / RPC | ethers.js v6 | ✅ Working |
-| Storage | 0G Storage SDK | 🔴 Mock only (integration pending) |
-| DEX | Uniswap V3 Trading API | 🔴 Mock only (integration pending) |
-| Execution | KeeperHub SDK + direct RPC fallback | 🟡 Direct RPC works; KeeperHub pending |
+| Storage | 0G Storage HTTP API | ✅ Implemented (falls back to local JSON) |
+| DEX | Uniswap V3 Trading API | ✅ Implemented (POST /quote + /swap) |
+| Execution | KeeperHub REST API + direct RPC fallback | ✅ Implemented (auto-fallback on failure) |
+| Prices | CoinGecko free API | ✅ Implemented (no key needed) |
 | AI | OpenAI-compatible LLM | ✅ Working (with API key) |
 | News | CryptoPanic API | ✅ Working (with API key) + mock fallback |
 | API Server | Express + CORS | ✅ Working |
@@ -337,30 +338,32 @@ USE_MOCK_SERVICES=true
 
 ## 🚀 INTEGRATION ROADMAP
 
-### Phase 1: Core Real Integrations (Priority)
+### ✅ Phase 1: Core Real Integrations (COMPLETE)
 
-| # | Integration | Files | Effort | Blocker |
-|---|-------------|-------|--------|---------|
-| 1 | **0G Storage SDK** | `src/services/0gService.ts` | 1-2 days | SDK availability (`@0gfoundation/0g-ts-sdk`) |
-| 2 | **Uniswap Trading API** | `src/services/uniswapService.ts` | 1-2 days | API key from Uniswap Developer Portal |
-| 3 | **KeeperHub Relay** | `src/services/keeperService.ts` | 4-8 hours | API key from KeeperHub |
-| 4 | **Price Oracle** | `src/services/balanceService.ts` | 2-4 hours | None (CoinGecko free tier works) |
+| # | Integration | Status | Fallback When No Key |
+|---|-------------|--------|---------------------|
+| 1 | **0G Storage HTTP API** | ✅ Implemented | Local JSON file (`data/agent-state.json`) |
+| 2 | **Uniswap Trading API** | ✅ Implemented | Returns null (engine skips trade safely) |
+| 3 | **KeeperHub REST API** | ✅ Implemented | Direct RPC via ethers.js v6 |
+| 4 | **CoinGecko Price Oracle** | ✅ Implemented | Hardcoded prices ($2000 WETH / $1 USDC) |
+| 5 | **LLM (OpenAI-compatible)** | ✅ Implemented | Mock keyword matching |
 
-### Phase 2: Harness & Distribution
+### ✅ Phase 2: Agent Plugin Mode (COMPLETE)
+
+| # | Feature | Description |
+|---|---------|-------------|
+| 6 | **POST /api/sense** | Returns portfolio + news for host agent analysis |
+| 7 | **POST /api/decide** | Accepts LLMDecision from host agent, runs VALIDATE→EXECUTE→LOG |
+| 8 | **Zero API keys** | Plugin mode works with host agent's existing LLM — no key provisioning |
+
+### Phase 3: Future Enhancements
 
 | # | Task | Description |
 |---|------|-------------|
-| 5 | **Agent Installable Harness** | `capymate-harness` repo with `setup.js` interactive CLI |
-| 6 | **AGENT_PROMPT.md** | One-file install guide for any AI agent |
-| 7 | **npm package** | `npm install capymate-harness` or `npx create-capymate-agent` |
-
-### Phase 3: Production Hardening
-
-| # | Task | Description |
-|---|------|-------------|
-| 8 | **Mainnet deployment** | Switch from Base Sepolia to Base Mainnet |
-| 9 | **ENS identity** | Register `capymate.eth` for agent identity |
-| 10 | **Monitoring** | Add alerting for failed cycles, low balances, API downtime |
+| 9 | **Mainnet deployment** | Switch from Base Sepolia to Base Mainnet |
+| 10 | **ENS identity** | Register `capymate.eth` for agent identity |
+| 11 | **iNFT tokenization** | Wrap agent state + wallet into 0G iNFT |
+| 12 | **Monitoring** | Add alerting for failed cycles, low balances, API downtime |
 
 ---
 
