@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+
+# Agent workspace
+.sisyphus/
+
+# Generated artifacts
+artifacts/
+cache/
+data/
+
+# Lock files (keep package-lock.json for reproducibility)
+pnpm-lock.yaml
+yarn.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-results/
+playwright-report/
+
+# Personal notes (not for public distribution)
+.personal/
+judging.md
+DEV/
+
+# Rollback backups
+.rollback/
