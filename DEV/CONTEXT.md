@@ -1,7 +1,7 @@
 # CapyMate: Autonomous Sentiment-Based Portfolio Rebalancer
 
 **Last Updated:** 2026-05-03  
-**Status:** MVP-ready. All core integrations implemented with graceful fallbacks.
+**Status:** Production-ready. All core integrations implemented with graceful fallbacks.
 
 ---
 
@@ -39,7 +39,7 @@ CapyMate is an AI agent that autonomously rebalances a crypto portfolio (WETH/US
 | Execution | KeeperHub REST API + direct RPC fallback | ✅ Implemented (auto-fallback on failure) |
 | Prices | CoinGecko free API | ✅ Implemented (no key needed) |
 | AI | OpenAI-compatible LLM | ✅ Working (with API key) |
-| News | CryptoPanic API | ✅ Working (with API key) + mock fallback |
+| News | CryptoPanic API | ✅ Working (with API key) |
 | API Server | Express + CORS | ✅ Working |
 | Dashboard | React 18 + Vite + Tailwind + Recharts | ✅ Working |
 | Local Blockchain | Hardhat v3 (isolated) | ✅ Working |
@@ -54,11 +54,11 @@ capymate/
 │   ├── config/
 │   │   └── constants.ts          # Safety rules, addresses, getConfig()
 │   ├── services/
-│   │   ├── 0gService.ts          # 0G Storage (mock → real)
-│   │   ├── uniswapService.ts     # Uniswap Trading API (mock → real)
-│   │   ├── keeperService.ts      # Tx submission (mock/dryRun → real)
-│   │   ├── llmService.ts         # Sentiment analysis (mock → real)
-│   │   ├── newsService.ts        # CryptoPanic (mock → real)
+│   │   ├── 0gService.ts          # 0G Storage (local JSON fallback)
+│   │   ├── uniswapService.ts     # Uniswap Trading API
+│   │   ├── keeperService.ts      # Tx submission (dryRun → real)
+│   │   ├── llmService.ts         # Sentiment analysis
+│   │   ├── newsService.ts        # CryptoPanic API
 │   │   └── balanceService.ts     # On-chain balance reads
 │   ├── logic/
 │   │   ├── engine.ts             # 6-step orchestration cycle
@@ -75,7 +75,7 @@ capymate/
 │   │   ├── test-*.ts             # Service smoke tests
 │   │   └── test-agent-hardhat.ts # Agent + blockchain integration
 │   └── scripts/
-│       └── demo.ts               # Hackathon demo
+│       └── demo.ts               # Hackathon demo (inline mocks)
 ├── blockchain_test/              # Hardhat + Solidity (isolated deps)
 │   ├── contracts/
 │   │   └── MockPortfolioTracker.sol
@@ -103,7 +103,7 @@ capymate/
 Every POLLING_INTERVAL_MS (default: 5 min):
 
 1. SENSE ──────────────────────────────────────────────────►
-   • Fetch crypto news (CryptoPanic API or mock)
+   • Fetch crypto news (CryptoPanic API)
    • Get wallet balances (on-chain via ethers.js)
    • Push portfolio snapshot to portfolio_history (with timestamp)
 
@@ -149,8 +149,8 @@ Every POLLING_INTERVAL_MS (default: 5 min):
 | **Uniswap Trading API** | POST /quote + POST /swap | Returns null (engine skips trade safely) |
 | **KeeperHub** | REST API POST + polling until mined | Direct RPC via ethers.js v6 |
 | **CoinGecko Price Oracle** | GET /simple/price (free tier) | Hardcoded prices ($2000 WETH / $1 USDC) |
-| **LLM (OpenAI-compatible)** | Fetch + Zod validation | Mock keyword matching (bullish/bearish) |
-| **News (CryptoPanic)** | REST API + mock headlines | Mock headlines work without key |
+| **LLM (OpenAI-compatible)** | Fetch + Zod validation | Falls back to last decision or neutral |
+| **News (CryptoPanic)** | REST API | Returns empty array if no key |
 
 ### ✅ Agent Plugin Mode
 
@@ -209,26 +209,7 @@ if (saved !== null) {
 }
 ```
 
-### 2. Mock Mode Pattern
-
-Every service accepts `{ mock?: boolean }` and provides mock fallback methods:
-
-```typescript
-class MyService {
-  private mock: boolean;
-  constructor(options: { mock?: boolean } = {}) {
-    this.mock = options.mock ?? false;
-  }
-  async doSomething() {
-    if (this.mock) return this.mockDoSomething();
-    // real implementation
-  }
-}
-```
-
-Benefit: Entire stack runs without API keys. Demo-ready.
-
-### 3. Zod Validation
+### 2. Zod Validation
 
 LLM outputs are validated with a strict Zod schema (`llmDecisionSchema`) that enforces:
 - `sentiment`: `'bullish' | 'bearish' | 'neutral'`
@@ -239,11 +220,11 @@ LLM outputs are validated with a strict Zod schema (`llmDecisionSchema`) that en
 
 If validation fails, the engine falls back to the last known decision or default allocation. Host agents using plugin mode should validate their own output before calling `/api/decide`.
 
-### 4. Config Loading
+### 3. Config Loading
 
 Single source of truth: `getConfig()` in `src/config/constants.ts`. Reads from `.env` with sensible defaults. No scattered `process.env` reads.
 
-### 5. Error Isolation
+### 4. Error Isolation
 
 Each cycle step is independently try-caught. A failure in SENSE doesn't prevent REMEMBER from running. The engine always returns 6 CycleResult objects.
 
@@ -254,13 +235,8 @@ Each cycle step is independently try-caught. A failure in SENSE doesn't prevent 
 ### Run Tests
 
 ```bash
-# All smoke tests (mock mode, no API keys)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-engine.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-validator.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-mock.ts
-
-# Integration demo
-npm run demo  # alias for: USE_MOCK_SERVICES=true npx tsx developer_test/scripts/demo.ts
+# Integration demo (uses inline mocks)
+npm run demo
 
 # Type check
 npm run typecheck  # tsc --noEmit
@@ -296,15 +272,15 @@ RPC_URL=https://sepolia.base.org
 # Wallet (TESTNET ONLY)
 PRIVATE_KEY=0x...
 
-# LLM (required for real sentiment analysis)
+# LLM (required for autonomous mode)
 LLM_API_KEY=sk-...
 LLM_MODEL=gpt-4o-mini
-LLM_BASE_URL=https://api.openai.com/v1  # optional, for DeepSeek/Groq
+LLM_BASE_URL=https://api.openai.com/v1
 
-# News (optional — mock fallback works without)
+# News (optional)
 CRYPTOPANIC_API_KEY=...
 
-# 0G Storage (optional — mock fallback works without)
+# 0G Storage (optional — falls back to local JSON)
 ZERO_G_ENDPOINT=https://indexer-storage-testnet-turbo.0g.ai
 ZERO_G_API_KEY=...
 
@@ -313,23 +289,12 @@ KEEPER_HUB_API_KEY=...
 
 # Config
 POLLING_INTERVAL_MS=300000
-DRY_RUN=true
-USE_MOCK_SERVICES=true
+DRY_RUN=false
 ```
 
 ---
 
 ## 🎓 Extension Points
-
-### Add a New Service
-
-1. Create `src/services/myService.ts`
-2. Export a class with constructor accepting `{ mock?: boolean }`
-3. Add mock fallback methods for all public methods
-4. Add type to `EngineDeps` in `src/logic/engine.ts`
-5. Wire into `Engine` constructor
-6. Add to `src/types/index.ts` if new interfaces needed
-7. Add test to `developer_test/tests/test-myService.ts`
 
 ### Add a New Validation Rule
 

@@ -1,7 +1,7 @@
 # CapyMate — Testing Guide
 
 **For:** Developers testing the project before submission  
-**Requires:** No API keys (all tests run in mock mode)
+**Requires:** PRIVATE_KEY and RPC_URL for production tests; DRY_RUN=true for safe simulation
 
 ---
 
@@ -21,41 +21,37 @@ Both must pass before doing anything else.
 
 ---
 
-## Backend Tests (2 minutes)
+## Backend Tests
 
-Run each test individually. All use mock mode — no API keys needed.
+Run tests with required environment variables:
 
 ```bash
-# Core engine test (13 assertions)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-engine.ts
+# Core engine test
+PRIVATE_KEY=0x... RPC_URL=https://sepolia.base.org npx tsx developer_test/tests/test-engine.ts
 
-# Safety rules test (8 assertions)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-validator.ts
+# Safety rules test
+npx tsx developer_test/tests/test-validator.ts
 
-# LLM mock test (13 assertions)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-mock.ts
+# Zod validation test
+npx tsx developer_test/tests/test-llm-zod.ts
 
-# Zod validation test (6 assertions)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-zod.ts
-
-# Other service tests (smoke tests)
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-news.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-0g.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-api.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-dryrun.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-mock.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-uniswap.ts
+# Other service tests (require respective API keys)
+CRYPTOPANIC_API_KEY=... npx tsx developer_test/tests/test-news.ts
+ZERO_G_API_KEY=... npx tsx developer_test/tests/test-0g.ts
+npx tsx developer_test/tests/test-api.ts
+npx tsx developer_test/tests/test-keeper-dryrun.ts
+npx tsx developer_test/tests/test-uniswap.ts
 ```
 
 **Expected:** All show "PASS" for every check.
 
 ---
 
-## Agent Plugin Mode Test (1 minute)
+## Agent Plugin Mode Test
 
 ```bash
-# 1. Start the server in background
-USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts &
+# 1. Start the server in background (DRY_RUN for safety)
+DRY_RUN=true npx tsx src/index.ts &
 SERVER_PID=$!
 sleep 2
 
@@ -79,7 +75,7 @@ kill $SERVER_PID
 
 ---
 
-## Hardhat Blockchain Tests (2 minutes)
+## Hardhat Blockchain Tests
 
 ```bash
 cd blockchain_test
@@ -104,7 +100,7 @@ npx hardhat run scripts/deploy.ts --network localhost
 
 ---
 
-## Dashboard Tests (1 minute)
+## Dashboard Tests
 
 ```bash
 cd dashboard
@@ -127,8 +123,8 @@ Before submission, confirm all of these:
 
 - [ ] `npm run typecheck` → 0 errors
 - [ ] `npm run demo` → bullish + bearish scenarios complete
-- [ ] `test-engine.ts` → 13/13 pass
-- [ ] `test-validator.ts` → 8/8 pass
+- [ ] `test-engine.ts` → passes
+- [ ] `test-validator.ts` → passes
 - [ ] Agent plugin mode → SENSE returns data, DECIDE runs cycle
 - [ ] Hardhat compile → success
 - [ ] Hardhat test → `npx tsx node_modules/.bin/mocha test/*.ts` → 1 passing
@@ -145,15 +141,34 @@ Before submission, confirm all of these:
 | Demo shows old cycle counts | `rm data/agent-state.json` to reset |
 | Hardhat errors | Must be in `blockchain_test/` directory |
 | Dashboard API disconnected | Ensure backend running on `localhost:3000` |
+| Missing PRIVATE_KEY | Set in `.env` file |
 
 ---
 
-## What You Don't Need to Test
+## Safe Testing with DRY_RUN
 
-These require real API keys — skip for now:
-- Real 0G Storage (falls back to JSON automatically)
-- Real Uniswap API (falls back to mock quotes)
-- Real KeeperHub (falls back to direct RPC)
-- Real LLM (mock keyword matching works)
+Set `DRY_RUN=true` in your `.env` to simulate trades without broadcasting transactions. This is the recommended way to test the full pipeline safely:
 
-The mock fallbacks are production-quality and demo-ready.
+```bash
+DRY_RUN=true npx tsx src/index.ts
+```
+
+The agent will:
+- Read real balances from the blockchain
+- Fetch real news from CryptoPanic
+- Call the real LLM for sentiment analysis
+- Validate decisions with real safety rules
+- **Log but NOT broadcast** transactions
+
+---
+
+## What Requires Real API Keys
+
+These integrations require API keys to function:
+- **LLM** — `LLM_API_KEY` for autonomous sentiment analysis
+- **CryptoPanic** — `CRYPTOPANIC_API_KEY` for news (returns empty without)
+- **KeeperHub** — `KEEPER_HUB_API_KEY` for gasless relay (uses direct RPC without)
+- **0G Storage** — `ZERO_G_API_KEY` for decentralized memory (falls back to local JSON without)
+- **Uniswap** — `UNISWAP_API_KEY` for Trading API (rate-limited without)
+
+The demo script (`npm run demo`) uses inline mock classes and does not require any API keys.

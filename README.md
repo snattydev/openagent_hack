@@ -56,7 +56,7 @@ CapyMate runs as a harness that any AI agent can use as its crypto execution and
 
 - Node.js ≥ 20
 - npm
-- A Base Sepolia wallet with testnet ETH (for real mode)
+- A Base Sepolia wallet with testnet ETH
 
 ### 1. Install
 
@@ -84,15 +84,14 @@ LLM_API_KEY=sk-...                   # OpenAI, Groq, or compatible
 LLM_MODEL=gpt-4o-mini                # Or your preferred model
 LLM_BASE_URL=https://api.openai.com/v1  # Optional, for DeepSeek/Groq
 
-# Optional — service integrations (fall back gracefully if missing)
+# Optional — service integrations (graceful degradation if missing)
 KEEPER_HUB_API_KEY=...               # Gasless relay via KeeperHub
 UNISWAP_API_KEY=...                  # Rate-limited without key
-CRYPTOPANIC_API_KEY=...              # Falls back to mock headlines
+CRYPTOPANIC_API_KEY=...              # Returns empty news if no key
 ZERO_G_API_KEY=...                   # Falls back to local JSON
 
 # Behavior
 DRY_RUN=false                        # Set to true to simulate trades
-USE_MOCK_SERVICES=false              # Set to true for demo without keys
 POLLING_INTERVAL_MS=300000           # 5 minutes between cycles
 PORT=3000                            # REST API port
 ```
@@ -155,7 +154,7 @@ Enable by setting `LLM_API_KEY` and leaving the API server running. The agent wi
 | DEX | Uniswap V3 Trading API |
 | Execution | KeeperHub REST API + direct RPC fallback |
 | AI | OpenAI-compatible LLM (GPT-4, Claude, Groq, DeepSeek, etc.) |
-| News | CryptoPanic API + mock fallback |
+| News | CryptoPanic API |
 | API Server | Express + CORS |
 | Dashboard | React 18 + Vite + Tailwind CSS + Recharts |
 
@@ -170,7 +169,7 @@ Enable by setting `LLM_API_KEY` and leaving the API server running. The agent wi
 │   ├── services/
 │   │   ├── balanceService.ts    # On-chain WETH/USDC/ETH balance reads
 │   │   ├── 0gService.ts         # 0G Storage KV read/write
-│   │   ├── newsService.ts       # CryptoPanic API + mock news
+│   │   ├── newsService.ts       # CryptoPanic API
 │   │   ├── llmService.ts        # OpenAI-compatible LLM + Zod validation
 │   │   ├── uniswapService.ts    # Quote fetching + swap calldata
 │   │   └── keeperService.ts     # Transaction submission
@@ -190,7 +189,7 @@ Enable by setting `LLM_API_KEY` and leaving the API server running. The agent wi
 │           ├── StatusCard.tsx
 │           ├── AllocationChart.tsx
 │           └── TradeHistory.tsx
-├── developer_test/              # Tests, mocks, demo scripts
+├── developer_test/              # Tests, demos, mocks
 │   ├── tests/
 │   └── scripts/
 ├── blockchain_test/             # Hardhat + Solidity (isolated deps)
@@ -248,25 +247,24 @@ npm run typecheck
 # Expected: 0 errors
 ```
 
-### Run the Demo (No API Keys)
+### Run the Demo
 
 ```bash
 npm run demo
 ```
 
-This runs in mock mode and verifies:
+The demo uses inline mock implementations to verify:
 - All 6 services instantiate correctly
 - The engine runs a full cycle
 - Bullish/bearish sentiment routing works
 - Validation rules are applied
-- Mock transactions execute
 - Memory persists across cycles
 
 ### Manual API Testing
 
 ```bash
-# Start server in mock mode
-USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+# Start server with DRY_RUN for safe testing
+DRY_RUN=true npx tsx src/index.ts
 
 # In another terminal:
 curl http://localhost:3000/api/health
@@ -305,51 +303,3 @@ npm run build
 | `POLLING_INTERVAL_MS` | `300000` | Auto-poll interval (5 min) |
 | `PORT` | `3000` | Express API port |
 | `DRY_RUN` | `false` | If `true`, simulates trades without broadcasting |
-| `USE_MOCK_SERVICES` | `false` | If `true`, uses mock data for all services |
-
----
-
-## Contract Addresses (Base Sepolia)
-
-| Contract | Address |
-|----------|---------|
-| WETH | `0x4200000000000000000000000000000000000006` |
-| USDC | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
-| Uniswap V3 SwapRouter02 | `0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4` |
-| 0G Flow Contract | `0x22E03a6A89B950F1c82ec5e74F8ECa321a105296` |
-
----
-
-## Troubleshooting
-
-### `npm install` fails
-- Ensure Node.js ≥ 20: `node --version`
-- Clear cache: `npm cache clean --force && npm install`
-
-### TypeScript errors
-- Run `npm run typecheck` to see specific errors
-
-### Real mode: transactions fail
-- Verify `PRIVATE_KEY` is set and has testnet ETH for gas
-- Check `DRY_RUN=false` if you want actual broadcasts
-- Ensure `CHAIN_ID=84532` for Base Sepolia
-
-### Dashboard shows "API Disconnected"
-- Ensure the backend is running on `http://localhost:3000`
-- Check CORS is not blocked (the backend allows all origins in dev)
-
----
-
-## Prize Track Fit
-
-| Sponsor | Why We Fit |
-|---------|------------|
-| **0G** | Decentralized agent memory via 0G Storage HTTP API + gas-efficient on-chain state proxy (`MockPortfolioTracker.sol` stores compact hashes on-chain, full history on 0G) |
-| **KeeperHub** | Execution layer with gasless relay via REST API + automatic direct RPC fallback for resilience |
-| **Uniswap** | Trading API integration with quote fetching, swap calldata generation, and safety validation |
-
----
-
-## License
-
-ISC

@@ -12,9 +12,9 @@ based on real-time market sentiment analysis. Built for the ETHGlobal OpenAgent 
 
 - **Runtime:** Node.js 20+, TypeScript 6
 - **Chain:** Base Sepolia (testnet) → Mainnet
-- **Storage:** 0G Storage SDK (decentralized KV store)
-- **DEX:** Uniswap V3
-- **Execution:** KeeperHub SDK + direct RPC fallback
+- **Storage:** 0G Storage HTTP API (decentralized KV store)
+- **DEX:** Uniswap V3 Trading API
+- **Execution:** KeeperHub REST API + direct RPC fallback
 - **AI:** OpenAI-compatible LLM (GPT-4, Claude via proxy, Groq, etc.)
 - **API:** Express + CORS
 - **Dashboard:** React 18 + Vite + Tailwind CSS + Recharts
@@ -77,22 +77,20 @@ Current cap: **20 entries** (`src/config/constants.ts` → `STORAGE_CONFIG.MAX_P
 
 ---
 
-## Mock Mode
+## DRY_RUN Mode
 
-The entire stack is mockable. No API keys needed.
+Set `DRY_RUN=true` to simulate trades without broadcasting:
 
 ```bash
-USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+DRY_RUN=true npx tsx src/index.ts
 ```
 
-In mock mode:
-- `0gService.ts` reads/writes to `data/agent-state.json` instead of 0G
-- `llmService.ts` uses keyword matching instead of calling an LLM
-- `keeperService.ts` logs transactions instead of broadcasting
-- `balanceService.ts` returns fake balances
-- `newsService.ts` returns canned headlines
+In DRY_RUN mode:
+- All real APIs are called (balances, news, LLM, quotes)
+- Transactions are logged but NOT broadcast
+- Safe for testing the full pipeline
 
-**Agent rule:** When testing changes, always verify in mock mode first. The demo script (`npm run demo`) is the primary integration test.
+**Agent rule:** Use DRY_RUN for safe testing. Never test with real trades unless explicitly requested.
 
 ---
 
@@ -158,8 +156,8 @@ on-chain, keep the full history on 0G.
 ### Adding a New Service
 
 1. Create `src/services/myService.ts`
-2. Export a class with a constructor accepting `{ mock?: boolean }`
-3. Add mock fallback methods for all public methods
+2. Export a class with a constructor accepting configuration options
+3. Implement real API calls with graceful fallbacks
 4. Add type to `EngineDeps` in `src/logic/engine.ts`
 5. Wire into `Engine` constructor
 6. Add to `src/types/index.ts` if new interfaces needed
@@ -186,9 +184,8 @@ on-chain, keep the full history on 0G.
 ### "My state changes aren't persisting"
 
 Check:
-- Is the engine running in mock mode? (`USE_MOCK_SERVICES=true` writes to `data/agent-state.json`)
-- Did REMEMBER overwrite your changes? Ensure merge logic is preserved
 - Is `cycle_count` incrementing? LOG step must complete for save to trigger
+- Did REMEMBER overwrite your changes? Ensure merge logic is preserved
 
 ### "TypeScript errors in Hardhat files"
 
@@ -224,10 +221,10 @@ src/
     validator.ts              6 safety rules
     portfolio.ts              Allocation math
   services/
-    0gService.ts              0G KV store (mock → agent-state.json)
-    llmService.ts             LLM call + Zod validation + mock
+    0gService.ts              0G Storage (local JSON fallback)
+    llmService.ts             LLM call + Zod validation
     balanceService.ts         On-chain balance reads
-    newsService.ts            CryptoPanic API + mock
+    newsService.ts            CryptoPanic API
     uniswapService.ts         Quote + calldata
     keeperService.ts          Tx submission
   api/
@@ -251,10 +248,10 @@ developer_test/
     test-*.ts                 Service smoke tests
     test-agent-hardhat.ts     Agent + blockchain integration
   scripts/
-    demo.ts                   Integration demo
+    demo.ts                   Integration demo (inline mocks)
 
 data/
-  agent-state.json            Mock mode state file (gitignored)
+  agent-state.json            Local state fallback (gitignored)
 
 dashboard/
   src/                        React frontend
@@ -267,8 +264,8 @@ dashboard/
 ```bash
 # Development
 npm run typecheck              # TypeScript check (main project only)
-npm run demo                   # Full integration demo
-USE_MOCK_SERVICES=true npx tsx src/index.ts   # Run agent in mock mode
+npm run demo                   # Full integration demo (inline mocks)
+DRY_RUN=true npx tsx src/index.ts   # Run agent in simulation mode
 
 # Hardhat
 cd blockchain_test
@@ -283,7 +280,7 @@ curl http://localhost:3000/api/health
 curl -X POST http://localhost:3000/api/trigger
 curl http://localhost:3000/api/state
 
-# Reset mock state
+# Reset local state
 rm data/agent-state.json
 ```
 
@@ -338,3 +335,22 @@ rm data/agent-state.json
 - `npm run test:contracts` in blockchain_test ✅ (1 passing)
 - All backend smoke tests ✅ (58 assertions)
 - Integration demo ✅
+
+### 2026-05-03 — Mock Mode Removal from Production
+
+**Changes:**
+1. Removed `mock` parameter and mock implementations from all production services
+2. Removed `USE_MOCK_SERVICES` from config and `.env`
+3. Updated demo script to use inline mock classes
+4. Production services now always use real implementations
+5. Graceful fallbacks remain for missing optional API keys
+
+**Rationale:**
+- Production code should not contain mock logic
+- Mock implementations belong in test/demo code only
+- Cleaner separation between production and testing concerns
+
+**Verification:**
+- `npm run typecheck` ✅ (0 errors)
+- `npm run demo` ✅ (works with inline mocks)
+- All docs updated ✅
