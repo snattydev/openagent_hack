@@ -1,35 +1,89 @@
-// ---------------------------------------------------------------------------
-// Integration Test: CapyMate Agent + Hardhat Local Blockchain
-// This test runs the full agent cycle against a local Hardhat node with the
-// MockPortfolioTracker contract deployed.
-//
-// For REAL LLM mode (DeepSeek V4 flash), set in .env:
-//   LLM_API_KEY=sk-your-key
-//   LLM_BASE_URL=https://api.deepseek.com/v1
-//   LLM_MODEL=deepseek-chat
-//   USE_MOCK_SERVICES=false
-//
-// Run with mock LLM (no API key needed):
-//   npx tsx tests/test-agent-hardhat.ts
-//
-// Run with real DeepSeek LLM:
-//   LLM_API_KEY=sk-your-key LLM_BASE_URL=https://api.deepseek.com/v1 \
-//     LLM_MODEL=deepseek-chat USE_MOCK_SERVICES=false \
-//     npx tsx tests/test-agent-hardhat.ts
-// ---------------------------------------------------------------------------
-
 import { ethers } from 'ethers';
 import { Engine } from '../../src/logic/engine.js';
-import { BalanceService } from '../../src/services/balanceService.js';
-import { ZeroGService } from '../../src/services/0gService.js';
-import { NewsService } from '../../src/services/newsService.js';
-import { LLMService } from '../../src/services/llmService.js';
-import { UniswapService } from '../../src/services/uniswapService.js';
-import { KeeperService } from '../../src/services/keeperService.js';
-import { getConfig } from '../../src/config/constants.js';
+import type { PortfolioState, AgentState, NewsItem, LLMDecision, TokenBalance } from '../../src/types/index.js';
 
 const CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
 const RPC_URL = 'http://127.0.0.1:8545';
+
+class TestBalanceService {
+  async getWalletBalances(): Promise<PortfolioState> {
+    return {
+      balances: [
+        { token: 'WETH', amount: 1.5, decimals: 18, price_usd: 2000 },
+        { token: 'USDC', amount: 3000, decimals: 6, price_usd: 1 },
+      ],
+      total_value_usd: 6000,
+      current_allocation: { WETH: 0.5, USDC: 0.5 },
+      target_allocation: { WETH: 0.5, USDC: 0.5 },
+      timestamp: Date.now(),
+    };
+  }
+}
+
+class Test0GService {
+  private storage: Record<string, AgentState> = {};
+
+  async loadState(agentId: string): Promise<AgentState | null> {
+    return this.storage[agentId] ?? null;
+  }
+
+  async saveState(agentId: string, state: AgentState): Promise<void> {
+    this.storage[agentId] = state;
+  }
+}
+
+class TestNewsService {
+  async fetchNews(): Promise<NewsItem[]> {
+    return [
+      {
+        title: 'ETH ETF approved',
+        source: 'test',
+        published_at: new Date().toISOString(),
+        sentiment_vote: { positive: 100, negative: 0, important: 50 },
+        currencies: ['ETH'],
+      },
+    ];
+  }
+}
+
+class TestLLMService {
+  async analyzeSentiment(): Promise<LLMDecision> {
+    return {
+      sentiment: 'bullish',
+      confidence: 0.85,
+      reasoning: 'Bullish test signal',
+      target_allocation: { WETH: 0.6, USDC: 0.4 },
+      key_signals: ['ETH ETF approved'],
+    };
+  }
+}
+
+class TestUniswapService {
+  async getQuote(fromToken: string, _toToken: string, amount: string) {
+    return {
+      from_token: fromToken,
+      to_token: fromToken === 'WETH' ? 'USDC' : 'WETH',
+      amount,
+      expected_output: '1000000000',
+      slippage: 0.005,
+      route_data: { test: true },
+    };
+  }
+
+  async getSwapCalldata() {
+    return {
+      to: '0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4',
+      data: '0x0',
+      value: '0',
+    };
+  }
+}
+
+class TestKeeperService {
+  async submitTransaction() {
+    return '0x' + '1'.repeat(64);
+  }
+}
 
 async function main() {
   console.log('=== CapyMate Agent + Hardhat Blockchain Integration Test ===\n');
@@ -43,25 +97,30 @@ async function main() {
   console.log(`  Block: ${blockNumber}`);
   console.log(`  Contract: ${CONTRACT_ADDRESS}\n`);
 
-  const config = getConfig();
-  const useMock = process.env.USE_MOCK_SERVICES !== 'false';
-  const useRealLLM = !useMock && !!config.llmApiKey;
-
-  console.log(`Mode: ${useMock ? 'MOCK' : 'REAL'}`);
-  console.log(`LLM: ${useRealLLM ? 'DeepSeek V4 flash (real)' : 'Mock keyword matching'}`);
-  console.log(`Blockchain: Local Hardhat (EDR simulated)\n`);
+  const config = {
+    chainId: 31337,
+    rpcUrl: RPC_URL,
+    privateKey: '0x' + '1'.repeat(64),
+    zeroGEndpoint: '',
+    zeroGApiKey: '',
+    keeperHubApiKey: '',
+    uniswapApiKey: '',
+    llmApiKey: '',
+    llmModel: 'gpt-4o-mini',
+    llmBaseUrl: 'https://api.openai.com/v1',
+    cryptopanicApiKey: '',
+    pollingIntervalMs: 300000,
+    port: 3000,
+    dryRun: true,
+  };
 
   const engine = new Engine({
-    balanceService: new BalanceService({ mock: useMock }),
-    zeroGService: new ZeroGService({ mock: useMock }),
-    newsService: new NewsService({ mock: useMock }),
-    llmService: new LLMService({
-      apiKey: config.llmApiKey,
-      model: config.llmModel,
-      mock: useMock,
-    }),
-    uniswapService: new UniswapService({ mock: useMock }),
-    keeperService: new KeeperService({ mock: useMock, dryRun: true }),
+    balanceService: new TestBalanceService() as any,
+    zeroGService: new Test0GService() as any,
+    newsService: new TestNewsService() as any,
+    llmService: new TestLLMService() as any,
+    uniswapService: new TestUniswapService() as any,
+    keeperService: new TestKeeperService() as any,
     config,
   });
 
@@ -122,17 +181,6 @@ async function main() {
 
   console.log(`\n${'='.repeat(50)}`);
   console.log(`Results: ${passed} passed, ${failed} failed`);
-
-  if (useMock) {
-    console.log('\nNOTE: Test ran in MOCK mode.');
-    console.log('To test with REAL DeepSeek V4 flash LLM:');
-    console.log('  1. Get a DeepSeek API key from https://platform.deepseek.com');
-    console.log('  2. Set LLM_API_KEY=sk-your-key in .env');
-    console.log('  3. Set LLM_BASE_URL=https://api.deepseek.com/v1 in .env');
-    console.log('  4. Set LLM_MODEL=deepseek-chat in .env');
-    console.log('  5. Set USE_MOCK_SERVICES=false in .env');
-    console.log('  6. Re-run: npx tsx tests/test-agent-hardhat.ts');
-  }
 
   if (failed > 0) {
     process.exit(1);

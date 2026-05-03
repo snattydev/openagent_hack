@@ -174,7 +174,7 @@ All backend tests run in **mock mode** — zero API keys required.
 ### Engine Test (13 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-engine.ts
+npx tsx developer_test/tests/test-engine.ts
 ```
 
 **Results:**
@@ -202,7 +202,7 @@ Results: 13 passed, 0 failed out of 13
 ### Validator Test (10 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-validator.ts
+npx tsx developer_test/tests/test-validator.ts
 ```
 
 **Results:**
@@ -232,7 +232,7 @@ Passed: 10 | Failed: 0
 ### LLM Mock Test (13 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-mock.ts
+npx tsx developer_test/tests/test-llm-mock.ts
 ```
 
 **Results:**
@@ -250,7 +250,7 @@ Results: 13 passed, 0 failed out of 13
 ### LLM Zod Validation (6 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-zod.ts
+npx tsx developer_test/tests/test-llm-zod.ts
 ```
 
 **Results:**
@@ -266,7 +266,7 @@ Results: 6 passed, 0 failed out of 6
 ### 0G Storage Round-Trip (3 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-0g.ts
+npx tsx developer_test/tests/test-0g.ts
 ```
 
 **Results:**
@@ -280,7 +280,7 @@ PASS: loadState returns null for unknown agent
 ### API Server Smoke Test (1 assertion)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-api.ts
+npx tsx developer_test/tests/test-api.ts
 ```
 
 **Results:**
@@ -293,8 +293,8 @@ USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-api.ts
 ### KeeperHub Tests (2 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-mock.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-dryrun.ts
+npx tsx developer_test/tests/test-keeper-mock.ts
+npx tsx developer_test/tests/test-keeper-dryrun.ts
 ```
 
 **Results:**
@@ -308,7 +308,7 @@ USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-dryrun.ts
 ### Uniswap Service (2 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-uniswap.ts
+npx tsx developer_test/tests/test-uniswap.ts
 ```
 
 **Results:**
@@ -322,7 +322,7 @@ USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-uniswap.ts
 ### News Service (5 assertions)
 
 ```bash
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-news.ts
+npx tsx developer_test/tests/test-news.ts
 ```
 
 **Results:**
@@ -408,7 +408,7 @@ Results: 6 passed, 0 failed
 - Contract bytecode is present on-chain
 - State persists across cycles (cycleCount increments)
 
-> **Note:** This test runs in mock LLM mode by default (no API key). To test with a real DeepSeek LLM, set `USE_MOCK_SERVICES=false` and provide `LLM_API_KEY`.
+> **Note:** This test runs in mock LLM mode by default (no API key). To test with a real DeepSeek LLM, set `` and provide `LLM_API_KEY`.
 
 ---
 
@@ -512,16 +512,16 @@ npx hardhat run scripts/deploy.ts --network localhost
 npm run typecheck
 
 # Run all smoke tests
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-engine.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-validator.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-mock.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-llm-zod.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-news.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-0g.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-api.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-mock.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-keeper-dryrun.ts
-USE_MOCK_SERVICES=true npx tsx developer_test/tests/test-uniswap.ts
+npx tsx developer_test/tests/test-engine.ts
+npx tsx developer_test/tests/test-validator.ts
+npx tsx developer_test/tests/test-llm-mock.ts
+npx tsx developer_test/tests/test-llm-zod.ts
+npx tsx developer_test/tests/test-news.ts
+npx tsx developer_test/tests/test-0g.ts
+npx tsx developer_test/tests/test-api.ts
+npx tsx developer_test/tests/test-keeper-mock.ts
+npx tsx developer_test/tests/test-keeper-dryrun.ts
+npx tsx developer_test/tests/test-uniswap.ts
 
 # Integration demo
 npm run demo
@@ -554,7 +554,7 @@ npx playwright test
 
 ```bash
 # Terminal 1: Agent + API
-USE_MOCK_SERVICES=true DRY_RUN=true npx tsx src/index.ts
+DRY_RUN=true npx tsx src/index.ts
 
 # Terminal 2: Dashboard
 cd dashboard && npm run dev
